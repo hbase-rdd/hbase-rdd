@@ -1,4 +1,4 @@
-package unicredit.spark
+package unicredit.spark.hbase
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.rdd.RDD

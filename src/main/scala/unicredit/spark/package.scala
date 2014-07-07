@@ -1,3 +1,3 @@
-package unicredit
+package unicredit.spark
 
-package object spark extends HBaseWriteSupport with HBaseReadSupport with TsvReadSupport
+package object hbase extends HBaseWriteSupport with HBaseReadSupport

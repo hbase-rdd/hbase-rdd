@@ -1,4 +1,4 @@
-package unicredit.spark
+package unicredit.spark.hbase
 
 import scala.util.control.Exception.allCatch
 

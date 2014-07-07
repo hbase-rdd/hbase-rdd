@@ -1,4 +1,4 @@
-package unicredit.spark
+package unicredit.spark.hbase
 
 import org.apache.hadoop.hbase.client.{ Put, HBaseAdmin }
 import org.apache.hadoop.hbase.{ HBaseConfiguration, HTableDescriptor, HColumnDescriptor, TableName }
