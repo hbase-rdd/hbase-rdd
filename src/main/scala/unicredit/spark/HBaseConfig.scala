@@ -1,6 +1,7 @@
 package unicredit.spark
 
 import org.apache.hadoop.conf.Configuration
+import org.apache.spark.rdd.RDD
 
 class HBaseConfig(val options: Map[String, String]) extends Serializable {
   def apply(conf: Configuration): Unit =

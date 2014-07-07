@@ -11,6 +11,7 @@ import org.apache.hadoop.hbase.util.Bytes
 
 import org.apache.spark._
 import org.apache.spark.SparkContext._
+import org.apache.spark.rdd.RDD
 
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -24,7 +25,7 @@ trait HBaseReadSupport {
 }
 
 final class HBaseSC(@transient sc: SparkContext) extends Serializable {
-  def extract[A](data: Map[String, List[String]], result: Result, interpret: Array[Byte] => A): Map =
+  def extract[A](data: Map[String, List[String]], result: Result, interpret: Array[Byte] => A) =
     data map {
       case (cf, columns) =>
         val content = columns flatMap { column =>
@@ -38,7 +39,7 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
         cf -> content
     }
 
-  def makeConf(config: HBaseConfig, table: String): HBaseConfiguration = {
+  def makeConf(config: HBaseConfig, table: String) = {
     val conf = HBaseConfiguration.create()
 
     conf.setBoolean("hbase.cluster.distributed", true)
@@ -49,7 +50,7 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
     conf
   }
 
-  def hbase[A](table: String, data: Map[String, List[String]])(implicit config: HBaseConfig, interpret: Array[Byte] => A): RDD =
+  def hbase[A](table: String, data: Map[String, List[String]])(implicit config: HBaseConfig, interpret: Array[Byte] => A) =
 
     sc.newAPIHadoopRDD(makeConf(config, table), classOf[TableInputFormat],
       classOf[ImmutableBytesWritable], classOf[Result]) map {
@@ -57,7 +58,7 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
           Bytes.toString(key.get) -> extract(data, row, interpret)
       }
 
-  def hbaseRaw(table: String)(implicit config: HBaseConfig): RDD =
+  def hbaseRaw(table: String)(implicit config: HBaseConfig) =
 
     sc.newAPIHadoopRDD(makeConf(config, table), classOf[TableInputFormat],
       classOf[ImmutableBytesWritable], classOf[Result]) map {
