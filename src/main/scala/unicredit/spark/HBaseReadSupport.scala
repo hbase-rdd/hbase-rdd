@@ -1,6 +1,7 @@
 package unicredit.spark.hbase
 
 import scala.util.control.Exception.allCatch
+import scala.collection.JavaConversions._
 
 import org.apache.hadoop.hbase.client.Result
 import org.apache.hadoop.hbase.CellUtil
@@ -35,7 +36,7 @@ trait HBaseReadSupport {
 }
 
 final class HBaseSC(@transient sc: SparkContext) extends Serializable {
-  private def extract[A](data: Map[String, List[String]], result: Result, reader: Reads[A]) =
+  private def extract[A](data: Map[String, Set[String]], result: Result, reader: Reads[A]) =
     data map {
       case (cf, columns) =>
         val content = columns flatMap { column =>
@@ -47,6 +48,18 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
         } toMap
 
         cf -> content
+    }
+
+  private def extractRow[A](data: Set[String], result: Result, reader: Reads[A]) =
+    result.listCells groupBy { cell =>
+      new String(CellUtil.cloneFamily(cell))
+    } filterKeys(data.contains) mapValues { cells =>
+      cells map { cell =>
+        val column = CellUtil.cloneQualifier(cell)
+        val value = CellUtil.cloneValue(cell)
+
+        column -> reader.read(value)
+      }
     }
 
   private def makeConf(config: HBaseConfig, table: String) = {
@@ -66,13 +79,31 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    * nested map which associated column family and column to
    * the value. Columns which are not found are omitted from the map.
    */
-  def hbase[A](table: String, data: Map[String, List[String]])
+  def hbase[A](table: String, data: Map[String, Set[String]])
     (implicit config: HBaseConfig, reader: Reads[A]) =
 
       sc.newAPIHadoopRDD(makeConf(config, table), classOf[TableInputFormat],
         classOf[ImmutableBytesWritable], classOf[Result]) map {
           case (key, row) =>
             Bytes.toString(key.get) -> extract(data, row, reader)
+        }
+
+  /**
+   * Provides an RDD of HBase rows. Here `data` is a set of
+   * colum families, which are read in full.
+   *
+   * Returns an `RDD[(String, Map[String, Map[String, A]])]`, where
+   * the first element is the rowkey and the second element is a
+   * nested map which associated column family and column to
+   * the value.
+   */
+  def hbaseFull[A](table: String, data: Set[String])
+    (implicit config: HBaseConfig, reader: Reads[A]) =
+
+      sc.newAPIHadoopRDD(makeConf(config, table), classOf[TableInputFormat],
+        classOf[ImmutableBytesWritable], classOf[Result]) map {
+          case (key, row) =>
+            Bytes.toString(key.get) -> extractRow(data, row, reader)
         }
 
   /**
