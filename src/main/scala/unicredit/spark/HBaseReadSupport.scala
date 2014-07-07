@@ -17,15 +17,16 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.JsonDSL.WithDouble._
 
-trait HBaseReadSupport {
-  implicit def toHBaseSC(sc: SparkContext): HBaseSC = new HBaseSC(sc)
 
-  implicit def bytes2string(bytes: Array[Byte]): String = new String(bytes)
-  implicit def bytes2json(bytes: Array[Byte]): JValue = parse(new String(bytes))
+trait HBaseReadSupport {
+  implicit def toHBaseSC(sc: SparkContext) = new HBaseSC(sc)
+
+  implicit def bytes2string(bytes: Array[Byte]) = new String(bytes)
+  implicit def bytes2json(bytes: Array[Byte]) = parse(new String(bytes))
 }
 
 final class HBaseSC(@transient sc: SparkContext) extends Serializable {
-  def extract[A](data: Map[String, List[String]], result: Result, interpret: Array[Byte] => A) =
+  private def extract[A](data: Map[String, List[String]], result: Result, interpret: Array[Byte] => A) =
     data map {
       case (cf, columns) =>
         val content = columns flatMap { column =>
@@ -39,11 +40,9 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
         cf -> content
     }
 
-  def makeConf(config: HBaseConfig, table: String) = {
+  private def makeConf(config: HBaseConfig, table: String) = {
     val conf = HBaseConfiguration.create()
 
-    conf.setBoolean("hbase.cluster.distributed", true)
-    conf.setInt("hbase.client.scanner.caching", 10000)
     conf.set(TableInputFormat.INPUT_TABLE, table)
     config(conf)
 

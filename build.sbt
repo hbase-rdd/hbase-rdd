@@ -17,9 +17,6 @@ scalacOptions ++= Seq(
 org.scalastyle.sbt.ScalastylePlugin.Settings
 
 
-scalariformSettings
-
-
 resolvers ++= Seq(
   "Cloudera releases" at "https://repository.cloudera.com/artifactory/libs-release"
 )

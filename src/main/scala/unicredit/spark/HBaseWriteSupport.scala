@@ -12,12 +12,13 @@ import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext._
 
+
 trait HBaseWriteSupport {
-  implicit def toHBaseRDD(rdd: RDD[(String, Map[String, String])]): HBaseRDD = new HBaseRDD(rdd)
+  implicit def toHBaseRDD(rdd: RDD[(String, Map[String, String])]) = new HBaseRDD(rdd)
 }
 
 final class HBaseRDD(val rdd: RDD[(String, Map[String, String])]) extends Serializable {
-  def convert(id: String, values: Map[String, String], family: String): (ImmutableBytesWritable, Put) = {
+  private def convert(id: String, values: Map[String, String], family: String) = {
     implicit def bitify(s: String): Array[Byte] = Bytes.toBytes(s)
 
     val put = new Put(id)
@@ -27,7 +28,7 @@ final class HBaseRDD(val rdd: RDD[(String, Map[String, String])]) extends Serial
     (new ImmutableBytesWritable, put)
   }
 
-  def createTable(table: String, family: String, admin: HBaseAdmin): Unit = {
+  private def createTable(table: String, family: String, admin: HBaseAdmin) = {
     if (!admin.isTableAvailable(table)) {
       val tableName = TableName.valueOf(table)
       val tableDescriptor = new HTableDescriptor(tableName)
@@ -37,11 +38,9 @@ final class HBaseRDD(val rdd: RDD[(String, Map[String, String])]) extends Serial
     }
   }
 
-  def toHBase(table: String, family: String)(implicit config: HBaseConfig): Unit = {
+  def toHBase(table: String, family: String)(implicit config: HBaseConfig) = {
     val conf = HBaseConfiguration.create()
 
-    conf.setBoolean("hbase.cluster.distributed", true)
-    conf.setInt("hbase.client.scanner.caching", 10000)
     conf.set(TableOutputFormat.OUTPUT_TABLE, table)
     config(conf)
 
