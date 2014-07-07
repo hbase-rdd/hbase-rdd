@@ -1,7 +1,7 @@
 package unicredit.spark.hbase
 
 import org.apache.hadoop.hbase.client.{ Put, HBaseAdmin }
-import org.apache.hadoop.hbase.{ HBaseConfiguration, HTableDescriptor, HColumnDescriptor, TableName }
+import org.apache.hadoop.hbase.{ HTableDescriptor, HColumnDescriptor, TableName }
 import org.apache.hadoop.hbase.mapred.TableOutputFormat
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 
@@ -39,11 +39,9 @@ final class HBaseRDD(val rdd: RDD[(String, Map[String, String])]) extends Serial
   }
 
   def toHBase(table: String, family: String)(implicit config: HBaseConfig) = {
-    val conf = HBaseConfiguration.create()
+    val conf = config.get
 
     conf.set(TableOutputFormat.OUTPUT_TABLE, table)
-    config(conf)
-
     createTable(table, family, new HBaseAdmin(conf))
 
     val jobConf = new JobConf(conf, getClass)

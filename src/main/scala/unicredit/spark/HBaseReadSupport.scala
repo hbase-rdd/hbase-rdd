@@ -3,7 +3,7 @@ package unicredit.spark.hbase
 import scala.util.control.Exception.allCatch
 
 import org.apache.hadoop.hbase.client.Result
-import org.apache.hadoop.hbase.{ HBaseConfiguration, CellUtil }
+import org.apache.hadoop.hbase.CellUtil
 import org.apache.hadoop.hbase.mapreduce.TableInputFormat
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 
@@ -41,11 +41,9 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
     }
 
   private def makeConf(config: HBaseConfig, table: String) = {
-    val conf = HBaseConfiguration.create()
+    val conf = config.get
 
     conf.set(TableInputFormat.INPUT_TABLE, table)
-    config(conf)
-
     conf
   }
 

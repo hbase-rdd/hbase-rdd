@@ -1,23 +1,29 @@
 package unicredit.spark.hbase
 
+import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.rdd.RDD
 
 
-class HBaseConfig(val options: Map[String, String]) extends Serializable {
-  def apply(conf: Configuration) = {
-    for ((key, value) <- options) { conf.set(key, value) }
-
-    conf.setBoolean("hbase.cluster.distributed", true)
-    conf.setInt("hbase.client.scanner.caching", 10000)
-  }
+class HBaseConfig(defaults: Configuration) extends Serializable {
+  def get = HBaseConfiguration.create(defaults)
 }
 
 object HBaseConfig {
-  def apply(options: (String, String)*): HBaseConfig = new HBaseConfig(options.toMap)
+  def apply(conf: Configuration): HBaseConfig = new HBaseConfig(conf)
 
-  def apply(config: { def rootdir: String; def quorum: String }): HBaseConfig = apply(
-    "hbase.rootdir" -> config.rootdir,
-    "hbase.zookeeper.quorum" -> config.quorum
+  def apply(options: (String, String)*): HBaseConfig = {
+    val conf = HBaseConfiguration.create
+
+    for ((key, value) <- options) { conf.set(key, value) }
+    conf.setBoolean("hbase.cluster.distributed", true)
+    conf.setInt("hbase.client.scanner.caching", 10000)
+
+    apply(conf)
+  }
+
+  def apply(conf: { def rootdir: String; def quorum: String }): HBaseConfig = apply(
+    "hbase.rootdir" -> conf.rootdir,
+    "hbase.zookeeper.quorum" -> conf.quorum
   )
 }
