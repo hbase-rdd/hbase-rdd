@@ -54,6 +54,16 @@ final class HBaseRDD[A](val rdd: RDD[(String, Map[String, A])], val writer: Writ
     }
   }
 
+  /**
+   * Writes the underlying RDD to HBase.
+   *
+   * Simplified form, where all values are written to the
+   * same column family.
+   *
+   * The RDD is assumed to be an instance of `RDD[(String, Map[String, A])]`,
+   * where the first value is the rowkey and the second is a map that
+   * associates column names to values.
+   */
   def toHBase(table: String, family: String)(implicit config: HBaseConfig) = {
     val conf = config.get
 
