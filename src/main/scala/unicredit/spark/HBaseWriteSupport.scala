@@ -8,22 +8,34 @@ import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.mapred.JobConf
 import org.apache.hadoop.hbase.util.Bytes
 
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
+
 import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext._
 
 
 trait HBaseWriteSupport {
-  implicit def toHBaseRDD(rdd: RDD[(String, Map[String, String])]) = new HBaseRDD(rdd)
+  implicit def toHBaseRDD[A](rdd: RDD[(String, Map[String, A])])
+    (implicit writer: Writes[A]) = new HBaseRDD(rdd, writer)
+
+  implicit val stringWriter = new Writes[String] {
+    def write(data: String) = data.getBytes
+  }
+
+  implicit val jsonWriter = new Writes[JValue] {
+    def write(data: JValue) = compact(data).getBytes
+  }
 }
 
-final class HBaseRDD(val rdd: RDD[(String, Map[String, String])]) extends Serializable {
-  private def convert(id: String, values: Map[String, String], family: String) = {
-    implicit def bitify(s: String): Array[Byte] = Bytes.toBytes(s)
+final class HBaseRDD[A](val rdd: RDD[(String, Map[String, A])], val writer: Writes[A]) extends Serializable {
+  private def convert(id: String, values: Map[String, A], family: String) = {
+    def bytes(s: String) = Bytes.toBytes(s)
 
-    val put = new Put(id)
+    val put = new Put(bytes(id))
     for ((key, value) <- values) {
-      put.add(family, key, value)
+      put.add(bytes(family), bytes(key), writer.write(value))
     }
     (new ImmutableBytesWritable, put)
   }

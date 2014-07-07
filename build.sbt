@@ -2,7 +2,7 @@ name := "hbase-rdd"
 
 organization := "unicredit"
 
-version := "0.1.3"
+version := "0.1.6"
 
 scalaVersion := "2.10.3"
 
