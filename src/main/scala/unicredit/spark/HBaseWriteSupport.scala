@@ -16,6 +16,10 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext._
 
 
+/**
+ * Adds implicit methods to RDD[(String, Map[String, A])] to write
+ * to HBase sources.
+ */
 trait HBaseWriteSupport {
   implicit def toHBaseRDD[A](rdd: RDD[(String, Map[String, A])])
     (implicit writer: Writes[A]) = new HBaseRDD(rdd, writer)
