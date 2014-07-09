@@ -91,7 +91,7 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    *
    * Returns an `RDD[(String, Map[String, Map[String, A]])]`, where
    * the first element is the rowkey and the second element is a
-   * nested map which associated column family and column to
+   * nested map which associates column family and column to
    * the value. Columns which are not found are omitted from the map.
    */
   def hbase[A](table: String, data: Map[String, Set[String]])
