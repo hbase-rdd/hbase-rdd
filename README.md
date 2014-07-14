@@ -100,4 +100,22 @@ In general, `sc.hbase[A]` has a type parameter which represents the type of the 
       // Try(k -> v("cf1")("col2")).toOption
     })
 
+A second possibility is to get the whole column families. This can be useful if you do not know in advance which will be the column names. You can do this with the method `sc.hbaseFull[A]`, like
+
+    val table = "t1"
+    val famlies = Set("cf1", "cf2")
+    val rdd = sc.hbase[String](table, columns)
+
+The output, like `sc.hbase[A]`, is a `RDD[(String, Map[String, Map[String, A]])]`.
+
+Finally, there is a lower level access to the raw `org.apache.hadoop.hbase.client.Result` instances. For this, just do
+
+    val table = "t1"
+    val rdd = sc.hbaseRaw(table)
+
+The return value of `sc.hbaseRaw` (note that in this case there is no type parameter) is a `RDD[(String, Result)]`. The first element is the rowkey, while the second one is an instance of `org.apache.hadoop.hbase.client.Result`, so you can use the raw HBase API to query it.
+
+
+### Writing to HBase
+
 To be continued...
