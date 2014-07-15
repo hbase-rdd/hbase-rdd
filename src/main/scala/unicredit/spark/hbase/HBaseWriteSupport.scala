@@ -39,6 +39,10 @@ trait HBaseWriteSupport {
   implicit def toHBaseRDD[A](rdd: RDD[(String, Map[String, A])])
     (implicit writer: Writes[A]) = new HBaseRDD(rdd, writer)
 
+  implicit val byteArrayWriter = new Writes[Array[Byte]] {
+    def write(data: Array[Byte]) = data
+  }
+
   implicit val stringWriter = new Writes[String] {
     def write(data: String) = data.getBytes
   }

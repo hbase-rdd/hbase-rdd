@@ -41,6 +41,10 @@ import org.json4s.JsonDSL.WithDouble._
 trait HBaseReadSupport {
   implicit def toHBaseSC(sc: SparkContext) = new HBaseSC(sc)
 
+  implicit val byteArrayReader = new Reads[Array[Byte]] {
+    def read(data: Array[Byte]) = data
+  }
+
   implicit val stringReader = new Reads[String] {
     def read(data: Array[Byte]) = new String(data)
   }
