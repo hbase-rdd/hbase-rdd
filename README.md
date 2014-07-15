@@ -75,7 +75,7 @@ The content of the cells, on the other hand, can have any type that can be conve
 
 Methods that read a type `A` from HBase will need an implicit `Reads[A]` in scope, and symmetrically methods that write to HBase require an implicit `Writes[A]`.
 
-By default, we provide implicit readers and writers for `String` and `org.json4s.JValue`.
+By default, we provide implicit readers and writers for `String`, `org.json4s.JValue` and the quite trivial `Array[Byte]`.
 
 ### Reading from HBase
 
