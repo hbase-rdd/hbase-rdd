@@ -32,12 +32,12 @@ import org.apache.spark.SparkContext._
 
 
 /**
- * Adds implicit methods to RDD[(String, Map[String, A])] to write
- * to HBase sources.
+ * Adds implicit methods to `RDD[(String, Map[String, A])]` or
+ * `RDD[(String, Map[String, A])]` to write to HBase sources.
  */
 trait HBaseWriteSupport {
-  implicit def toHBaseRDD[A](rdd: RDD[(String, Map[String, A])])
-    (implicit writer: Writes[A]) = new HBaseRDD(rdd, writer)
+  implicit def toHBaseRDDSimple[A](rdd: RDD[(String, Map[String, A])]) = new HBaseRDDSimple(rdd)
+  implicit def toHBaseRDD[A](rdd: RDD[(String, Map[String, Map[String, A]])]) = new HBaseRDD(rdd)
 
   implicit val byteArrayWriter = new Writes[Array[Byte]] {
     def write(data: Array[Byte]) = data
@@ -52,27 +52,33 @@ trait HBaseWriteSupport {
   }
 }
 
-final class HBaseRDD[A](val rdd: RDD[(String, Map[String, A])], val writer: Writes[A]) extends Serializable {
-  private def convert(id: String, values: Map[String, A], family: String) = {
+sealed abstract class HBaseWriteHelpers[A] {
+  protected def convert(id: String, values: Map[String, Map[String, A]], writer: Writes[A]) = {
     def bytes(s: String) = Bytes.toBytes(s)
 
     val put = new Put(bytes(id))
-    for ((key, value) <- values) {
+    for {
+      (family, content) <- values
+      (key, value) <- content
+    } {
       put.add(bytes(family), bytes(key), writer.write(value))
     }
+
     (new ImmutableBytesWritable, put)
   }
 
-  private def createTable(table: String, family: String, admin: HBaseAdmin) = {
+  protected def createTable(table: String, families: List[String], admin: HBaseAdmin) = {
     if (!admin.isTableAvailable(table)) {
       val tableName = TableName.valueOf(table)
       val tableDescriptor = new HTableDescriptor(tableName)
 
-      tableDescriptor.addFamily(new HColumnDescriptor(family))
+      families foreach  { f => tableDescriptor.addFamily(new HColumnDescriptor(f)) }
       admin.createTable(tableDescriptor)
     }
   }
+}
 
+final class HBaseRDDSimple[A](val rdd: RDD[(String, Map[String, A])]) extends HBaseWriteHelpers[A] with Serializable {
   /**
    * Writes the underlying RDD to HBase.
    *
@@ -83,15 +89,36 @@ final class HBaseRDD[A](val rdd: RDD[(String, Map[String, A])], val writer: Writ
    * where the first value is the rowkey and the second is a map that
    * associates column names to values.
    */
-  def toHBase(table: String, family: String)(implicit config: HBaseConfig) = {
-    val conf = config.get
+  def tohbase(table: String, family: String)
+    (implicit config: HBaseConfig, writer: Writes[A]) = {
+      val conf = config.get
 
-    conf.set(TableOutputFormat.OUTPUT_TABLE, table)
-    createTable(table, family, new HBaseAdmin(conf))
+      conf.set(TableOutputFormat.OUTPUT_TABLE, table)
+      createTable(table, List(family), new HBaseAdmin(conf))
 
-    val jobConf = new JobConf(conf, getClass)
-    jobConf.setOutputFormat(classOf[TableOutputFormat])
+      val jobConf = new JobConf(conf, getClass)
+      jobConf.setOutputFormat(classOf[TableOutputFormat])
 
-    rdd.map({ case (k, v) => convert(k, v, family) }).saveAsHadoopDataset(jobConf)
-  }
+      rdd.map({ case (k, v) => convert(k, Map(family -> v), writer) }).saveAsHadoopDataset(jobConf)
+    }
+}
+
+final class HBaseRDD[A](val rdd: RDD[(String, Map[String, Map[String, A]])]) extends HBaseWriteHelpers[A] with Serializable {
+  /**
+   * Writes the underlying RDD to HBase.
+   *
+   * The RDD is assumed to be an instance of `RDD[(String, Map[String, Map[String, A]])]`,
+   * where the first value is the rowkey and the second is a nested map that associates
+   * column families and column names to values.
+   */
+  def tohbase(table: String)
+    (implicit config: HBaseConfig, writer: Writes[A]) = {
+      val conf = config.get
+      conf.set(TableOutputFormat.OUTPUT_TABLE, table)
+
+      val jobConf = new JobConf(conf, getClass)
+      jobConf.setOutputFormat(classOf[TableOutputFormat])
+
+      rdd.map({ case (k, v) => convert(k, v, writer) }).saveAsHadoopDataset(jobConf)
+    }
 }
