@@ -57,14 +57,16 @@ sealed abstract class HBaseWriteHelpers[A] {
     def bytes(s: String) = Bytes.toBytes(s)
 
     val put = new Put(bytes(id))
+    var empty = true
     for {
       (family, content) <- values
       (key, value) <- content
     } {
+      empty = false
       put.add(bytes(family), bytes(key), writer.write(value))
     }
 
-    (new ImmutableBytesWritable, put)
+    if (empty) None else Some(new ImmutableBytesWritable, put)
   }
 
   protected def createTable(table: String, families: List[String], admin: HBaseAdmin) = {
@@ -99,7 +101,7 @@ final class HBaseRDDSimple[A](val rdd: RDD[(String, Map[String, A])]) extends HB
       val jobConf = new JobConf(conf, getClass)
       jobConf.setOutputFormat(classOf[TableOutputFormat])
 
-      rdd.map({ case (k, v) => convert(k, Map(family -> v), writer) }).saveAsHadoopDataset(jobConf)
+      rdd.flatMap({ case (k, v) => convert(k, Map(family -> v), writer) }).saveAsHadoopDataset(jobConf)
     }
 }
 
@@ -119,6 +121,6 @@ final class HBaseRDD[A](val rdd: RDD[(String, Map[String, Map[String, A]])]) ext
       val jobConf = new JobConf(conf, getClass)
       jobConf.setOutputFormat(classOf[TableOutputFormat])
 
-      rdd.map({ case (k, v) => convert(k, v, writer) }).saveAsHadoopDataset(jobConf)
+      rdd.flatMap({ case (k, v) => convert(k, v, writer) }).saveAsHadoopDataset(jobConf)
     }
 }

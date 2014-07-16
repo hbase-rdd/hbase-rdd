@@ -16,7 +16,7 @@ A Jar for HBase-RDD is not available yet. For the time being, you can publish it
 
 Then, you can use it inside a Spark project by adding the following dependency in sbt:
 
-    dependencies += "unicredit" %% "hbase-rdd" % "0.2.1"
+    dependencies += "unicredit" %% "hbase-rdd" % "0.2.2"
 
 Currently, the project depends on the following artifacts:
 
