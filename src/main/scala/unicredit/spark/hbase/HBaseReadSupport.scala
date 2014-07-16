@@ -74,11 +74,11 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
       new String(CellUtil.cloneFamily(cell))
     } filterKeys(data.contains) mapValues { cells =>
       cells map { cell =>
-        val column = CellUtil.cloneQualifier(cell)
+        val column = new String(CellUtil.cloneQualifier(cell))
         val value = CellUtil.cloneValue(cell)
 
         column -> reader.read(value)
-      }
+      } toMap
     }
 
   private def makeConf(config: HBaseConfig, table: String) = {
