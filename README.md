@@ -3,7 +3,7 @@ HBase RDD
 
 ![logo](https://raw.githubusercontent.com/unicredit/hbase-rdd/master/docs/logo.png)
 
-This project allows to connect Apache Spark to HBase. Currently it is compiled with the versions of Spark and HBase available on CDH5. Other combinations of versions will be made available in the future.
+This project allows to connect Apache Spark to HBase. Currently it is compiled with Scala 2.10, using the versions of Spark and HBase available on CDH5. Other combinations of versions will be made available in the future.
 
 Installation
 ------------
@@ -103,8 +103,8 @@ In general, `sc.hbase[A]` has a type parameter which represents the type of the 
 A second possibility is to get the whole column families. This can be useful if you do not know in advance which will be the column names. You can do this with the method `sc.hbaseFull[A]`, like
 
     val table = "t1"
-    val famlies = Set("cf1", "cf2")
-    val rdd = sc.hbase[String](table, columns)
+    val families = Set("cf1", "cf2")
+    val rdd = sc.hbase[String](table, families)
 
 The output, like `sc.hbase[A]`, is a `RDD[(String, Map[String, Map[String, A]])]`.
 
@@ -118,4 +118,22 @@ The return value of `sc.hbaseRaw` (note that in this case there is no type param
 
 ### Writing to HBase
 
-To be continued...
+In order to write to HBase, some methods are added on certain types of RDD.
+
+The first one is parallel to the way you read from HBase. Assume you have an `RDD[(String, Map[String, Map[String, A]])]` and there is a `Writes[A]` in scope. Then you can write to HBase with the method `tohbase`, like
+
+    val table = "t1"
+    val rdd: RDD[(String, Map[String, Map[String, A]])] = ...
+    rdd.tohbase(table)
+
+A simplified form is available in the case that one only needs to write on a single column family. Then a similar method is available on `RDD[(String, Map[String, A])]`, which can be used as follows
+
+    val table = "t1"
+    val cf = "cf1"
+    val rdd: RDD[(String, Map[String, A])] = ...
+    rdd.tohbase(table, cf)
+
+API stability
+-------------
+
+The API described above should be considered unstable. The published, non-snapshot version of HBase-RDD may contain a slightly different API, based on comments received for the first version.
