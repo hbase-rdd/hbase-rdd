@@ -1,8 +1,12 @@
+import SonatypeKeys._
+
+sonatypeSettings
+
 name := "hbase-rdd"
 
-organization := "unicredit"
+organization := "eu.unicredit"
 
-version := "0.2.2"
+version := "0.2.2-SNAPSHOT"
 
 scalaVersion := "2.10.3"
 
@@ -33,12 +37,4 @@ publishMavenStyle := true
 
 pomIncludeRepository := { x => false }
 
-publishTo <<= version { (v: String) =>
-  val nexus = "http://nexus.rnd.unicredit.eu/"
-  if (v.trim.endsWith("SNAPSHOT"))
-    Some("snapshots" at nexus + "content/repositories/snapshots")
-  else
-    Some("releases"  at nexus + "content/repositories/releases")
-}
-
-credentials+= Credentials(Path.userHome / ".ivy2" / ".credentials")
+credentials += Credentials(Path.userHome / ".ivy2" / "sonatype.credentials")

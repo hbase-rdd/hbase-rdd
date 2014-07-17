@@ -10,13 +10,13 @@ Installation
 
 This guide assumes you are using SBT. Usage of similar tools like Maven or Leiningen should work with minor differences as well.
 
-A Jar for HBase-RDD is not available yet. For the time being, you can publish it in your local repository with
+A Jar for the preliminary version is available on the Sonatype snapshots repository. You can add the repository with
 
-    sbt publish-local
+    resolvers += "Sonatype snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
 
-Then, you can use it inside a Spark project by adding the following dependency in sbt:
+Then, you can add the following dependency in sbt:
 
-    dependencies += "unicredit" %% "hbase-rdd" % "0.2.2"
+    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.2.2-SNAPSHOT"
 
 Currently, the project depends on the following artifacts:
 
