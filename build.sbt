@@ -6,9 +6,9 @@ name := "hbase-rdd"
 
 organization := "eu.unicredit"
 
-version := "0.2.2-SNAPSHOT"
+version := "0.3.0-SNAPSHOT"
 
-scalaVersion := "2.10.3"
+scalaVersion := "2.10.4"
 
 scalacOptions ++= Seq(
   "-deprecation",
@@ -26,11 +26,11 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.apache.spark" %% "spark-core" % "0.9.1" % "provided",
-  "org.apache.hbase" % "hbase-common" % "0.96.1.1-cdh5.0.1" % "provided",
-  "org.apache.hbase" % "hbase-client" % "0.96.1.1-cdh5.0.1" % "provided",
-  "org.apache.hbase" % "hbase-server" % "0.96.1.1-cdh5.0.1" % "provided",
-  "org.json4s" %% "json4s-jackson" % "3.2.9" % "provided"
+  "org.apache.spark" %% "spark-core" % "1.0.2" % "provided",
+  "org.apache.hbase" % "hbase-common" % "0.98.1-cdh5.1.3" % "provided",
+  "org.apache.hbase" % "hbase-client" % "0.98.1-cdh5.1.3" % "provided",
+  "org.apache.hbase" % "hbase-server" % "0.98.1-cdh5.1.3" % "provided",
+  "org.json4s" %% "json4s-jackson" % "3.2.11" % "provided"
 )
 
 publishMavenStyle := true
