@@ -3,7 +3,7 @@ HBase RDD
 
 ![logo](https://raw.githubusercontent.com/unicredit/hbase-rdd/master/docs/logo.png)
 
-This project allows to connect Apache Spark to HBase. Currently it is compiled with Scala 2.10, using the versions of Spark and HBase available on CDH5. Other combinations of versions will be made available in the future.
+This project allows to connect Apache Spark to HBase. Currently it is compiled with Scala 2.10, using the versions of Spark and HBase available on CDH5.1. Version `0.2.2-SNAPSHOT` of this project works on CDH5.0. Other combinations of versions will be made available in the future.
 
 Installation
 ------------
@@ -16,15 +16,15 @@ A Jar for the preliminary version is available on the Sonatype snapshots reposit
 
 Then, you can add the following dependency in sbt:
 
-    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.2.2-SNAPSHOT"
+    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.3.0-SNAPSHOT"
 
 Currently, the project depends on the following artifacts:
 
-    "org.apache.spark" %% "spark-core" % "0.9.1" % "provided",
-    "org.apache.hbase" % "hbase-common" % "0.96.1.1-cdh5.0.1" % "provided",
-    "org.apache.hbase" % "hbase-client" % "0.96.1.1-cdh5.0.1" % "provided",
-    "org.apache.hbase" % "hbase-server" % "0.96.1.1-cdh5.0.1" % "provided",
-    "org.json4s" %% "json4s-jackson" % "3.2.9" % "provided"
+    "org.apache.spark" %% "spark-core" % "1.0.2" % "provided",
+    "org.apache.hbase" % "hbase-common" % "0.98.1-cdh5.1.3" % "provided",
+    "org.apache.hbase" % "hbase-client" % "0.98.1-cdh5.1.3" % "provided",
+    "org.apache.hbase" % "hbase-server" % "0.98.1-cdh5.1.3" % "provided",
+    "org.json4s" %% "json4s-jackson" % "3.2.11" % "provided"
 
 All dependencies appear with `provided` scope, so you will have to either have these dependencies in your project, or have the corresponding artifacts available locally in your cluster. Most of them are available in the Cloudera repositories, which you can add with the following line:
 
