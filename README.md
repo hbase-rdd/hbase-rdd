@@ -33,7 +33,7 @@ All dependencies appear with `provided` scope, so you will have to either have t
 Usage
 -----
 
-### Premilinary
+### Preliminary
 
 First, add the following import to get the necessary implicits:
 
@@ -59,9 +59,9 @@ In order to customize more parameters, one can provide a `Map[String, String]`, 
       ...
     ))
 
-Finally, HBaseConfig can be instantiated from an existing `org.apache.hadoop.hbase.HBaseConfiguration`
+Finally, HBaseConfig can be instantiated from an existing `org.apache.hadoop.conf.Configuration`
 
-    val conf: HBaseConfiguration = ...
+    val conf: Configuration = ...
     implicit val config = HBaseConfig(conf)
 
 ### A note on types
@@ -132,6 +132,63 @@ A simplified form is available in the case that one only needs to write on a sin
     val cf = "cf1"
     val rdd: RDD[(String, Map[String, A])] = ...
     rdd.tohbase(table, cf)
+
+
+### Bulk load to HBase, using HFiles
+
+In case of massive writing to HBase, writing Puts objects directly into the table can be inefficient and can cause HBase to be unresponsive (e.g. it can trigger region splitting).
+A better approach is to create HFiles instead, and than call LoadIncrementalHFiles job to move them to HBase's file system. Unfortunately this approach is quite cumbersome, as it implies the following steps:
+
+1. Make sure the table exists and has region splits so that rows are evenly distributed into regions (for better performance).
+
+2. Implement and execute a map (and reduce) job to write ordered Put or KeyValue objects to HFile files, using HFileOutputFormat2 output format. The reduce phase is configured behind the scenes with a call to HFileOutputFormat2.configureIncrementalLoad.
+
+3. Execute LoadIncrementalHFiles job to move HFile files to HBase's file system.
+
+4. Cleanup temporary files and folders
+
+Now you can perform steps 2 to 4 with a call to `loadToHBase`, like
+
+    val table = "t1"
+    val cf = "cf1"
+    val rdd: RDD[(K, Map[C, V])] = ...
+    rdd.loadToHBase(table, cf)
+
+or, if you have a fixed set of columns, like
+
+    val table = "t1"
+    val cf = "cf1"
+    val headers: Seq[String] = ...
+    val rdd: RDD[(K, Seq[V])] = ...
+    rdd.loadToHBase(table, cf, headers)
+
+where `headers` are column names for `Seq[V]` values.
+The only limitation is that you can work with only one column family.
+
+But what about step 1? For this, `prepareTable` comes to the rescue. If your input data is a tsv file on Hdfs, you can write
+
+    if (prepareTable(table, cf, input_path, region_size, header, takeSnapshot = false)) {
+
+      ...
+
+      rdd.loadToHBase(table, cf, headers)
+    }
+
+where `input_path` is the path to the file, `region_size` is the desired size of regions, represented as a number followed by B, K, M, G ("10G" is a good value), `header` is the name of the row key field (for tsv with headers, it can be null otherwise), set `takeSnapshot` to `true` if you want to take a snapshot of the existing table before loading new data.
+More generally, you can use instead
+
+    if (prepareTable(table, cf, keys, splitsCount, takeSnapshot = false)) {
+
+      ...
+
+      rdd.loadToHBase(table, cf, headers)
+    }
+
+where `keys` is an `RDD[String]` containing all the row keys and `splitCount` the number of splits that you want for a new table (that you must compute in some way) and it is not relevant if the table exists.
+
+`prepareTable` verifies that, if the table exists, it contains the desired column family (returns false otherwise), and optionally takes a snapshot of the table.
+If table does not exist, it computes a list of split keys and creates a new table with these splits and the desired column family.
+
 
 API stability
 -------------
