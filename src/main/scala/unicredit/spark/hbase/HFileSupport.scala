@@ -16,21 +16,21 @@
 package unicredit.spark.hbase
 
 import java.text.SimpleDateFormat
-import java.util.{Calendar, TreeSet, UUID}
+import java.util.{ Calendar, TreeSet, UUID }
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.permission.FsPermission
-import org.apache.hadoop.fs.{FileSystem, Path}
-import org.apache.hadoop.hbase.client.{HBaseAdmin, HTable}
+import org.apache.hadoop.fs.{ FileSystem, Path }
+import org.apache.hadoop.hbase.client.{ HBaseAdmin, HTable }
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
-import org.apache.hadoop.hbase.mapreduce.{HFileOutputFormat2, LoadIncrementalHFiles}
+import org.apache.hadoop.hbase.mapreduce.{ HFileOutputFormat2, LoadIncrementalHFiles }
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.{HColumnDescriptor, HTableDescriptor, KeyValue, TableName}
+import org.apache.hadoop.hbase.{ HColumnDescriptor, HTableDescriptor, KeyValue, TableName }
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner
-import org.apache.spark.SparkContext.{rddToOrderedRDDFunctions, rddToPairRDDFunctions}
+import org.apache.spark.SparkContext.{ rddToOrderedRDDFunctions, rddToPairRDDFunctions }
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{Partitioner, SparkConf, SparkContext}
+import org.apache.spark.{ Partitioner, SparkConf, SparkContext }
 
 import scala.collection.JavaConversions.asScalaSet
 import scala.reflect.ClassTag
@@ -173,11 +173,9 @@ trait HFileSupport {
   }
 }
 
-sealed abstract class HFileRDD extends Serializable {
+case class KeyDuplicatedException(key: String) extends Exception(f"rowkey [${key}] is not unique")
 
-  implicit def ord: Ordering[Array[Byte]] = new Ordering[Array[Byte]] {
-    def compare(x: Array[Byte], y: Array[Byte]): Int = Bytes.compareTo(x, y)
-  }
+sealed abstract class HFileRDD extends Serializable {
 
   implicit def asBytes(n: Any): Array[Byte] = n match {
     case b: Boolean => Bytes.toBytes(b)
@@ -197,7 +195,7 @@ sealed abstract class HFileRDD extends Serializable {
       val h = (key.hashCode() & 0x7fffffff) % fraction
       val k = asBytes(key)
       for (i <- 1 until splits.length)
-        if (ord.compare(k, splits(i)) < 0) return (i - 1) * fraction + h
+        if (Bytes.compareTo(k, splits(i)) < 0) return (i - 1) * fraction + h
 
       (splits.length - 1) * fraction + h
     }
@@ -205,15 +203,13 @@ sealed abstract class HFileRDD extends Serializable {
     override def numPartitions: Int = splits.length * fraction
   }
 
-  protected def loadToHBase[K: ClassTag, C, V](rdd: RDD[(K, Seq[(C, V)])], tableName: String, cFamilyStr: String)(implicit config: HBaseConfig, ord: Ordering[Array[Byte]]) = {
+  protected def loadToHBase[K: ClassTag, C, V](rdd: RDD[(K, Seq[(C, V)])], tableName: String, cFamilyStr: String)(implicit config: HBaseConfig) = {
     val conf = config.get
     val hTable = new HTable(conf, tableName)
     val cFamily = cFamilyStr.getBytes
 
     val job = new Job(conf, this.getClass.getName.split('$')(0))
 
-    job.setMapOutputKeyClass(classOf[ImmutableBytesWritable])
-    job.setMapOutputValueClass(classOf[KeyValue])
     HFileOutputFormat2.configureIncrementalLoad(job, hTable)
 
     // prepare path for HFiles output
@@ -221,38 +217,48 @@ sealed abstract class HFileRDD extends Serializable {
     val hFilePath = new Path("/tmp", tableName + "_" + UUID.randomUUID())
     fs.makeQualified(hFilePath)
 
-    rdd
-      .partitionBy(new HFilePartitioner(conf, hTable.getStartKeys))
-      .mapPartitions({ p => p.toSeq.sortBy(c => asBytes(c._1)).toIterator }, true)
-      .flatMap {
-        case (key, columns) =>
-          val hKey = new ImmutableBytesWritable()
-          hKey.set(key)
-          val kvs = new TreeSet[KeyValue](KeyValue.COMPARATOR)
-          for ((hb, v) <- columns) kvs.add(new KeyValue(hKey.get(), cFamily, hb, v))
-          kvs.toSeq map (kv => (hKey, kv))
+    try {
+      rdd
+        .partitionBy(new HFilePartitioner(conf, hTable.getStartKeys))
+        .mapPartitions({ p =>
+          p.toSeq.sortWith {
+            (r1, r2) =>
+              val ord = Bytes.compareTo(r1._1, r2._1)
+              if (ord == 0) throw KeyDuplicatedException(r1._1.toString)
+              ord < 0
+          }.toIterator
+        }, true)
+        .flatMap {
+          case (key, columns) =>
+            val hKey = new ImmutableBytesWritable()
+            hKey.set(key)
+            val kvs = new TreeSet[KeyValue](KeyValue.COMPARATOR)
+            for ((hb, v) <- columns) kvs.add(new KeyValue(hKey.get(), cFamily, hb, v))
+            kvs.toSeq map (kv => (hKey, kv))
+        }
+        .saveAsNewAPIHadoopFile(hFilePath.toString, classOf[ImmutableBytesWritable], classOf[KeyValue], classOf[HFileOutputFormat2], job.getConfiguration)
+
+      // prepare HFiles for incremental load
+      // set folders permissions read/write/exec for all
+      val rwx = new FsPermission("777")
+      val listFiles = fs.listStatus(hFilePath)
+      listFiles foreach { f =>
+        fs.setPermission(f.getPath, rwx)
+        // create a "_tmp" folder that can be used for HFile splitting, so that we can
+        // set permissions correctly. This is a workaround for unsecured HBase. It should not
+        // be necessary for SecureBulkLoadEndpoint (see https://issues.apache.org/jira/browse/HBASE-8495
+        // and http://comments.gmane.org/gmane.comp.java.hadoop.hbase.user/44273)
+        if (f.isDir) FileSystem.mkdirs(fs, new Path(f.getPath, "_tmp"), rwx)
       }
-      .saveAsNewAPIHadoopFile(hFilePath.toString, classOf[ImmutableBytesWritable], classOf[KeyValue], classOf[HFileOutputFormat2], job.getConfiguration)
 
-    // prepare HFiles for incremental load
-    // set folders permissions read/write/exec for all
-    val rwx = new FsPermission("777")
-    val listFiles = fs.listStatus(hFilePath)
-    listFiles foreach { f =>
-      fs.setPermission(f.getPath, rwx)
-      // create a "_tmp" folder that can be used for HFile splitting, so that we can
-      // set permissions correctly. This is a workaround for unsecured HBase. It should not
-      // be necessary for SecureBulkLoadEndpoint (see https://issues.apache.org/jira/browse/HBASE-8495
-      // and http://comments.gmane.org/gmane.comp.java.hadoop.hbase.user/44273)
-      if (f.isDir) FileSystem.mkdirs(fs, new Path(f.getPath, "_tmp"), rwx)
+      val lih = new LoadIncrementalHFiles(conf)
+      lih.doBulkLoad(hFilePath, hTable)
+    } finally {
+      fs.deleteOnExit(hFilePath)
+
+      // clean HFileOutputFormat2 stuff
+      fs.deleteOnExit(new Path(TotalOrderPartitioner.getPartitionFile(job.getConfiguration)))
     }
-    fs.deleteOnExit(hFilePath)
-
-    // clean HFileOutputFormat2 stuff
-    fs.deleteOnExit(new Path(TotalOrderPartitioner.getPartitionFile(job.getConfiguration)))
-
-    val lih = new LoadIncrementalHFiles(conf)
-    lih.doBulkLoad(hFilePath, hTable)
   }
 }
 
