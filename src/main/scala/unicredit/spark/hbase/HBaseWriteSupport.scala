@@ -15,18 +15,17 @@
 
 package unicredit.spark.hbase
 
-import org.apache.hadoop.hbase.client.{ Put, HBaseAdmin }
+import org.apache.hadoop.hbase.client.{ Put, Mutation, HBaseAdmin }
 import org.apache.hadoop.hbase.{ HTableDescriptor, HColumnDescriptor, TableName }
-import org.apache.hadoop.hbase.mapred.TableOutputFormat
+import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 
-import org.apache.hadoop.mapred.JobConf
+import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.hbase.util.Bytes
 
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
-import org.apache.spark._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext._
 
@@ -98,10 +97,10 @@ final class HBaseRDDSimple[A](val rdd: RDD[(String, Map[String, A])]) extends HB
       conf.set(TableOutputFormat.OUTPUT_TABLE, table)
       createTable(table, List(family), new HBaseAdmin(conf))
 
-      val jobConf = new JobConf(conf, getClass)
-      jobConf.setOutputFormat(classOf[TableOutputFormat])
+      val job = new Job(conf, this.getClass.getName.split('$')(0))
+      job.setOutputFormatClass(classOf[TableOutputFormat[String]])
 
-      rdd.flatMap({ case (k, v) => convert(k, Map(family -> v), writer) }).saveAsHadoopDataset(jobConf)
+      rdd.flatMap({ case (k, v) => convert(k, Map(family -> v), writer) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
     }
 }
 
@@ -118,9 +117,9 @@ final class HBaseRDD[A](val rdd: RDD[(String, Map[String, Map[String, A]])]) ext
       val conf = config.get
       conf.set(TableOutputFormat.OUTPUT_TABLE, table)
 
-      val jobConf = new JobConf(conf, getClass)
-      jobConf.setOutputFormat(classOf[TableOutputFormat])
+      val job = new Job(conf, this.getClass.getName.split('$')(0))
+      job.setOutputFormatClass(classOf[TableOutputFormat[String]])
 
-      rdd.flatMap({ case (k, v) => convert(k, v, writer) }).saveAsHadoopDataset(jobConf)
+      rdd.flatMap({ case (k, v) => convert(k, v, writer) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
     }
 }
