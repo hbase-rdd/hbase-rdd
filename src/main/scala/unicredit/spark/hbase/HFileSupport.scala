@@ -193,9 +193,8 @@ sealed abstract class HFileRDD extends Serializable {
 
     override def getPartition(key: Any): Int = {
       val h = (key.hashCode() & 0x7fffffff) % fraction
-      val k = asBytes(key)
       for (i <- 1 until splits.length)
-        if (Bytes.compareTo(k, splits(i)) < 0) return (i - 1) * fraction + h
+        if (Bytes.compareTo(key, splits(i)) < 0) return (i - 1) * fraction + h
 
       (splits.length - 1) * fraction + h
     }

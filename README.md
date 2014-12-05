@@ -136,7 +136,7 @@ A simplified form is available in the case that one only needs to write on a sin
 
 ### Bulk load to HBase, using HFiles
 
-In case of massive writing to HBase, writing Puts objects directly into the table can be inefficient and can cause HBase to be unresponsive (e.g. it can trigger region splitting).
+In case of massive writing to HBase, writing Put objects directly into the table can be inefficient and can cause HBase to be unresponsive (e.g. it can trigger region splitting).
 A better approach is to create HFiles instead, and than call LoadIncrementalHFiles job to move them to HBase's file system. Unfortunately this approach is quite cumbersome, as it implies the following steps:
 
 1. Make sure the table exists and has region splits so that rows are evenly distributed into regions (for better performance).
