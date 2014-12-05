@@ -13,30 +13,29 @@
 * limitations under the License.
 */
 
-package unicredit.spark.hbase.hfile
+package unicredit.spark.hbase
 
 import java.text.SimpleDateFormat
-import java.util.{ Calendar, TreeSet, UUID }
+import java.util.{Calendar, TreeSet, UUID}
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.permission.FsPermission
-import org.apache.hadoop.fs.{ FileSystem, Path }
-import org.apache.hadoop.hbase.client.{ HBaseAdmin, HTable }
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.hbase.client.{HBaseAdmin, HTable}
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
-import org.apache.hadoop.hbase.mapreduce.{ HFileOutputFormat2, LoadIncrementalHFiles }
+import org.apache.hadoop.hbase.mapreduce.{HFileOutputFormat2, LoadIncrementalHFiles}
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.{ TableName, HColumnDescriptor, HTableDescriptor, KeyValue }
+import org.apache.hadoop.hbase.{HColumnDescriptor, HTableDescriptor, KeyValue, TableName}
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner
-import org.apache.spark.SparkContext.{ rddToOrderedRDDFunctions, rddToPairRDDFunctions }
+import org.apache.spark.SparkContext.{rddToOrderedRDDFunctions, rddToPairRDDFunctions}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{ Partitioner, SparkConf, SparkContext }
-import unicredit.spark.hbase.HBaseConfig
+import org.apache.spark.{Partitioner, SparkConf, SparkContext}
 
 import scala.collection.JavaConversions.asScalaSet
 import scala.reflect.ClassTag
 
-object HFile {
+trait HFileSupport {
   implicit def seqRddToHFileRdd[K: ClassTag, V](rdd: RDD[(K, Seq[V])]): HFileSeqRDD[K, V] = new HFileSeqRDD[K, V](rdd)
 
   implicit def mapRddToHFileRdd[K: ClassTag, C, V](rdd: RDD[(K, Map[C, V])]): HFileMapRDD[K, C, V] = new HFileMapRDD[K, C, V](rdd)
@@ -180,7 +179,7 @@ sealed abstract class HFileRDD extends Serializable {
     def compare(x: Array[Byte], y: Array[Byte]): Int = Bytes.compareTo(x, y)
   }
 
-  implicit def toBytes(n: Any): Array[Byte] = n match {
+  implicit def asBytes(n: Any): Array[Byte] = n match {
     case b: Boolean => Bytes.toBytes(b)
     case d: Double => Bytes.toBytes(d)
     case f: Float => Bytes.toBytes(f)
@@ -196,7 +195,7 @@ sealed abstract class HFileRDD extends Serializable {
 
     override def getPartition(key: Any): Int = {
       val h = (key.hashCode() & 0x7fffffff) % fraction
-      val k = toBytes(key)
+      val k = asBytes(key)
       for (i <- 1 until splits.length)
         if (ord.compare(k, splits(i)) < 0) return (i - 1) * fraction + h
 
@@ -206,7 +205,7 @@ sealed abstract class HFileRDD extends Serializable {
     override def numPartitions: Int = splits.length * fraction
   }
 
-  protected def loadToHBase[K: ClassTag, C, V](rdd: RDD[(K, Seq[(C, V)])], tableName: String, cFamilyStr: String)(implicit config: HBaseConfig, ord: Ordering[K]) = {
+  protected def loadToHBase[K: ClassTag, C, V](rdd: RDD[(K, Seq[(C, V)])], tableName: String, cFamilyStr: String)(implicit config: HBaseConfig, ord: Ordering[Array[Byte]]) = {
     val conf = config.get
     val hTable = new HTable(conf, tableName)
     val cFamily = cFamilyStr.getBytes
@@ -224,7 +223,7 @@ sealed abstract class HFileRDD extends Serializable {
 
     rdd
       .partitionBy(new HFilePartitioner(conf, hTable.getStartKeys))
-      .mapPartitions({ p => p.toSeq.sortBy(_._1).toIterator }, true)
+      .mapPartitions({ p => p.toSeq.sortBy(c => asBytes(c._1)).toIterator }, true)
       .flatMap {
         case (key, columns) =>
           val hKey = new ImmutableBytesWritable()
@@ -265,7 +264,7 @@ final class HFileSeqRDD[K: ClassTag, V](seqRdd: RDD[(K, Seq[V])]) extends HFileR
    * where the first value is the rowkey and the second is a sequence of values to be
    * associated to column names in `headers`.
    */
-  def loadToHBase(tableName: String, cFamilyStr: String, headers: Seq[String])(implicit config: HBaseConfig, ord: Ordering[K]) = {
+  def loadToHBase(tableName: String, cFamilyStr: String, headers: Seq[String])(implicit config: HBaseConfig) = {
     val sc = seqRdd.context
     val headersBytes = sc.broadcast(headers map (_.getBytes))
     val rdd = seqRdd.map { case (k, v) => (k, headersBytes.value zip v) }
@@ -281,7 +280,7 @@ final class HFileMapRDD[K: ClassTag, C, V](mapRdd: RDD[(K, Map[C, V])]) extends 
    * where the first value is the rowkey and the second is a map that
    * associates column names to values.
    */
-  def loadToHBaseTable(tableName: String, cFamilyStr: String)(implicit config: HBaseConfig, ord: Ordering[K]) = {
+  def loadToHBase(tableName: String, cFamilyStr: String)(implicit config: HBaseConfig) = {
     val rdd = mapRdd.map { case (k, cv) => (k, cv.toSeq) }
     super.loadToHBase(rdd, tableName, cFamilyStr)
   }
