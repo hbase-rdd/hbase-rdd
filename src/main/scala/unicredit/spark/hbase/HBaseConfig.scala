@@ -17,8 +17,6 @@ package unicredit.spark.hbase
 
 import org.apache.hadoop.hbase.HBaseConfiguration
 import org.apache.hadoop.conf.Configuration
-import org.apache.spark.rdd.RDD
-
 
 /**
  * Wrapper for HBaseConfiguration
@@ -58,6 +56,5 @@ object HBaseConfig {
 
   def apply(conf: { def rootdir: String; def quorum: String }): HBaseConfig = apply(
     "hbase.rootdir" -> conf.rootdir,
-    "hbase.zookeeper.quorum" -> conf.quorum
-  )
+    "hbase.zookeeper.quorum" -> conf.quorum)
 }

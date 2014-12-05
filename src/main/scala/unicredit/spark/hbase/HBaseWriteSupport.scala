@@ -15,7 +15,7 @@
 
 package unicredit.spark.hbase
 
-import org.apache.hadoop.hbase.client.{ Put, Mutation, HBaseAdmin }
+import org.apache.hadoop.hbase.client.{ Put, HBaseAdmin }
 import org.apache.hadoop.hbase.{ HTableDescriptor, HColumnDescriptor, TableName }
 import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
@@ -29,14 +29,13 @@ import org.json4s.jackson.JsonMethods._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext._
 
-
 /**
  * Adds implicit methods to `RDD[(String, Map[String, A])]` or
  * `RDD[(String, Map[String, A])]` to write to HBase sources.
  */
 trait HBaseWriteSupport {
-  implicit def toHBaseRDDSimple[A](rdd: RDD[(String, Map[String, A])]) = new HBaseRDDSimple(rdd)
-  implicit def toHBaseRDD[A](rdd: RDD[(String, Map[String, Map[String, A]])]) = new HBaseRDD(rdd)
+  implicit def toHBaseRDDSimple[A](rdd: RDD[(String, Map[String, A])]): HBaseRDDSimple[A] = new HBaseRDDSimple(rdd)
+  implicit def toHBaseRDD[A](rdd: RDD[(String, Map[String, Map[String, A]])]): HBaseRDD[A] = new HBaseRDD(rdd)
 
   implicit val byteArrayWriter = new Writes[Array[Byte]] {
     def write(data: Array[Byte]) = data
@@ -73,7 +72,7 @@ sealed abstract class HBaseWriteHelpers[A] {
       val tableName = TableName.valueOf(table)
       val tableDescriptor = new HTableDescriptor(tableName)
 
-      families foreach  { f => tableDescriptor.addFamily(new HColumnDescriptor(f)) }
+      families foreach { f => tableDescriptor.addFamily(new HColumnDescriptor(f)) }
       admin.createTable(tableDescriptor)
     }
   }
@@ -90,18 +89,17 @@ final class HBaseRDDSimple[A](val rdd: RDD[(String, Map[String, A])]) extends HB
    * where the first value is the rowkey and the second is a map that
    * associates column names to values.
    */
-  def tohbase(table: String, family: String)
-    (implicit config: HBaseConfig, writer: Writes[A]) = {
-      val conf = config.get
+  def tohbase(table: String, family: String)(implicit config: HBaseConfig, writer: Writes[A]) = {
+    val conf = config.get
 
-      conf.set(TableOutputFormat.OUTPUT_TABLE, table)
-      createTable(table, List(family), new HBaseAdmin(conf))
+    conf.set(TableOutputFormat.OUTPUT_TABLE, table)
+    createTable(table, List(family), new HBaseAdmin(conf))
 
-      val job = new Job(conf, this.getClass.getName.split('$')(0))
-      job.setOutputFormatClass(classOf[TableOutputFormat[String]])
+    val job = new Job(conf, this.getClass.getName.split('$')(0))
+    job.setOutputFormatClass(classOf[TableOutputFormat[String]])
 
-      rdd.flatMap({ case (k, v) => convert(k, Map(family -> v), writer) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
-    }
+    rdd.flatMap({ case (k, v) => convert(k, Map(family -> v), writer) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
+  }
 }
 
 final class HBaseRDD[A](val rdd: RDD[(String, Map[String, Map[String, A]])]) extends HBaseWriteHelpers[A] with Serializable {
@@ -112,14 +110,13 @@ final class HBaseRDD[A](val rdd: RDD[(String, Map[String, Map[String, A]])]) ext
    * where the first value is the rowkey and the second is a nested map that associates
    * column families and column names to values.
    */
-  def tohbase(table: String)
-    (implicit config: HBaseConfig, writer: Writes[A]) = {
-      val conf = config.get
-      conf.set(TableOutputFormat.OUTPUT_TABLE, table)
+  def tohbase(table: String)(implicit config: HBaseConfig, writer: Writes[A]) = {
+    val conf = config.get
+    conf.set(TableOutputFormat.OUTPUT_TABLE, table)
 
-      val job = new Job(conf, this.getClass.getName.split('$')(0))
-      job.setOutputFormatClass(classOf[TableOutputFormat[String]])
+    val job = new Job(conf, this.getClass.getName.split('$')(0))
+    job.setOutputFormatClass(classOf[TableOutputFormat[String]])
 
-      rdd.flatMap({ case (k, v) => convert(k, v, writer) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
-    }
+    rdd.flatMap({ case (k, v) => convert(k, v, writer) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
+  }
 }

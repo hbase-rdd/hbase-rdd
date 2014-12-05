@@ -15,7 +15,6 @@
 
 package unicredit.spark.hbase
 
-
 /**
  * An instance of Reads[A] testifies that Array[Byte]
  * can be converted to A.
