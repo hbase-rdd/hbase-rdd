@@ -16,7 +16,7 @@ A Jar for the preliminary version is available on the Sonatype snapshots reposit
 
 Then, you can add the following dependency in sbt:
 
-    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.3.0-SNAPSHOT"
+    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.4.0-SNAPSHOT"
 
 Currently, the project depends on the following artifacts:
 
