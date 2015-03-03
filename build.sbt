@@ -6,7 +6,7 @@ name := "hbase-rdd"
 
 organization := "eu.unicredit"
 
-version := "0.4.0-SNAPSHOT"
+version := "0.4.0"
 
 scalaVersion := "2.10.4"
 
@@ -19,7 +19,6 @@ scalacOptions ++= Seq(
 )
 
 org.scalastyle.sbt.ScalastylePlugin.Settings
-
 
 resolvers ++= Seq(
   "Cloudera releases" at "https://repository.cloudera.com/artifactory/libs-release"
@@ -38,3 +37,30 @@ publishMavenStyle := true
 pomIncludeRepository := { x => false }
 
 credentials += Credentials(Path.userHome / ".ivy2" / "sonatype.credentials")
+
+pomExtra := {
+  <url>https://github.com/unicredit/hbase-rdd</url>
+  <licenses>
+    <license>
+      <name>Apache 2</name>
+      <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+    </license>
+  </licenses>
+  <scm>
+    <connection>scm:git:github.com/unicredit/hbase-rdd</connection>
+    <developerConnection>scm:git:git@github.com:unicredit/hbase-rdd</developerConnection>
+    <url>github.com/unicredit/hbase-rdd</url>
+  </scm>
+  <developers>
+    <developer>
+      <id>andreaferretti</id>
+      <name>Andrea Ferretti</name>
+      <url>https://github.com/andreaferretti/</url>
+    </developer>
+    <developer>
+      <id>fmontecuccolideglierri</id>
+      <name>Francesco Montecuccoli Degli Erri</name>
+      <url>https://github.com/fmontecuccolideglierri/</url>
+    </developer>
+  </developers>
+}
