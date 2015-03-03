@@ -48,13 +48,13 @@ The easiest way is to have a case class having two string members `quorum` and `
     val c = Config(...)
     implicit val config = HBaseConfig(c)
 
-In order to customize more parameters, one can provide a `Map[String, String]`, like
+In order to customize more parameters, one can provide a sequence of `(String, String)`, like
 
-    implicit val config = HBaseConfig(Map(
+    implicit val config = HBaseConfig(
       "hbase.rootdir" -> "...",
       "hbase.zookeeper.quorum" -> "...",
       ...
-    ))
+    )
 
 Finally, HBaseConfig can be instantiated from an existing `org.apache.hadoop.conf.Configuration`
 
