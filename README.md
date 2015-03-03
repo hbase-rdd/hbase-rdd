@@ -10,11 +10,7 @@ Installation
 
 This guide assumes you are using SBT. Usage of similar tools like Maven or Leiningen should work with minor differences as well.
 
-A Jar for the preliminary version is available on the Sonatype snapshots repository. You can add the repository with
-
-    resolvers += "Sonatype snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
-
-Then, you can add the following dependency in sbt:
+HBase RDD can be added as a dependency in sbt with:
 
     dependencies += "eu.unicredit" %% "hbase-rdd" % "0.4.0-SNAPSHOT"
 
@@ -28,7 +24,8 @@ Currently, the project depends on the following artifacts:
 
 All dependencies appear with `provided` scope, so you will have to either have these dependencies in your project, or have the corresponding artifacts available locally in your cluster. Most of them are available in the Cloudera repositories, which you can add with the following line:
 
-    resolvers += "Cloudera releases" at "https://repository.cloudera.com/artifactory/libs-release"
+    resolvers += "Cloudera releases" at
+      "https://repository.cloudera.com/artifactory/libs-release"
 
 Usage
 -----
@@ -188,9 +185,3 @@ where `keys` is an `RDD[String]` containing all the row keys and `splitCount` th
 
 `prepareTable` verifies that, if the table exists, it contains the desired column family (returns false otherwise), and optionally takes a snapshot of the table.
 If table does not exist, it computes a list of split keys and creates a new table with these splits and the desired column family.
-
-
-API stability
--------------
-
-The API described above should be considered unstable. The published, non-snapshot version of HBase-RDD may contain a slightly different API, based on comments received for the first version.
