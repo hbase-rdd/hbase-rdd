@@ -38,7 +38,7 @@ First, add the following import to get the necessary implicits:
 
 Then, you have to give configuration parameters to connect to HBase. This is done by providing an implicit instance of `unicredit.spark.hbase.HBaseConfig`. This can be done in a few ways, in increasing generality.
 
-## With `hbase-site.xml`
+#### With `hbase-site.xml`
 
 If you happen to have on the classpath `hbase-site.xml` with the right configuration parameters, you can just do
 
@@ -46,7 +46,7 @@ If you happen to have on the classpath `hbase-site.xml` with the right configura
 
 Otherwise, you will have to configure HBase RDD programmatically.
 
-## With a case class
+#### With a case class
 
 The easiest way is to have a case class having two string members `quorum` and `rootdir`. Then, something like the following will work
 
@@ -58,7 +58,7 @@ The easiest way is to have a case class having two string members `quorum` and `
     val c = Config(...)
     implicit val config = HBaseConfig(c)
 
-## With a map
+#### With a map
 
 In order to customize more parameters, one can provide a sequence of `(String, String)`, like
 
@@ -68,7 +68,7 @@ In order to customize more parameters, one can provide a sequence of `(String, S
       ...
     )
 
-## With a Hadoop configuration object
+#### With a Hadoop configuration object
 
 Finally, HBaseConfig can be instantiated from an existing `org.apache.hadoop.conf.Configuration`
 
