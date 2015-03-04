@@ -48,8 +48,6 @@ object HBaseConfig {
     val conf = HBaseConfiguration.create
 
     for ((key, value) <- options) { conf.set(key, value) }
-    conf.setBoolean("hbase.cluster.distributed", true)
-    conf.setInt("hbase.client.scanner.caching", 10000)
 
     apply(conf)
   }
