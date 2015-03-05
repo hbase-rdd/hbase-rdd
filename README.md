@@ -10,25 +10,24 @@ Installation
 
 This guide assumes you are using SBT. Usage of similar tools like Maven or Leiningen should work with minor differences as well.
 
-A Jar for the preliminary version is available on the Sonatype snapshots repository. You can add the repository with
+HBase RDD can be added as a dependency in sbt with:
 
-    resolvers += "Sonatype snapshots" at "https://oss.sonatype.org/content/repositories/snapshots"
-
-Then, you can add the following dependency in sbt:
-
-    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.4.0-SNAPSHOT"
+    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.4.1"
 
 Currently, the project depends on the following artifacts:
 
-    "org.apache.spark" %% "spark-core" % "1.0.2" % "provided",
-    "org.apache.hbase" % "hbase-common" % "0.98.1-cdh5.1.3" % "provided",
-    "org.apache.hbase" % "hbase-client" % "0.98.1-cdh5.1.3" % "provided",
-    "org.apache.hbase" % "hbase-server" % "0.98.1-cdh5.1.3" % "provided",
+    "org.apache.spark" %% "spark-core" % "1.2.0" % "provided",
+    "org.apache.hbase" % "hbase-common" % "0.98.6-cdh5.3.1" % "provided",
+    "org.apache.hbase" % "hbase-client" % "0.98.6-cdh5.3.1" % "provided",
+    "org.apache.hbase" % "hbase-server" % "0.98.6-cdh5.3.1" % "provided",
     "org.json4s" %% "json4s-jackson" % "3.2.11" % "provided"
 
 All dependencies appear with `provided` scope, so you will have to either have these dependencies in your project, or have the corresponding artifacts available locally in your cluster. Most of them are available in the Cloudera repositories, which you can add with the following line:
 
-    resolvers += "Cloudera releases" at "https://repository.cloudera.com/artifactory/libs-release"
+    resolvers ++= Seq(
+      "Cloudera repos" at "https://repository.cloudera.com/artifactory/cloudera-repos",
+      "Cloudera releases" at "https://repository.cloudera.com/artifactory/libs-release"
+    )
 
 Usage
 -----
@@ -39,7 +38,17 @@ First, add the following import to get the necessary implicits:
 
     import unicredit.spark.hbase._
 
-Then, you have to give configuration parameters to connect to HBase. This is done by providing an implicit instance of `unicredit.spark.hbase.HBaseConfig`. This can be done in three ways, in increasing generality.
+Then, you have to give configuration parameters to connect to HBase. This is done by providing an implicit instance of `unicredit.spark.hbase.HBaseConfig`. This can be done in a few ways, in increasing generality.
+
+#### With `hbase-site.xml`
+
+If you happen to have on the classpath `hbase-site.xml` with the right configuration parameters, you can just do
+
+    implicit val config = HBaseConfig()
+
+Otherwise, you will have to configure HBase RDD programmatically.
+
+#### With a case class
 
 The easiest way is to have a case class having two string members `quorum` and `rootdir`. Then, something like the following will work
 
@@ -51,13 +60,17 @@ The easiest way is to have a case class having two string members `quorum` and `
     val c = Config(...)
     implicit val config = HBaseConfig(c)
 
-In order to customize more parameters, one can provide a `Map[String, String]`, like
+#### With a map
 
-    implicit val config = HBaseConfig(Map(
+In order to customize more parameters, one can provide a sequence of `(String, String)`, like
+
+    implicit val config = HBaseConfig(
       "hbase.rootdir" -> "...",
       "hbase.zookeeper.quorum" -> "...",
       ...
-    ))
+    )
+
+#### With a Hadoop configuration object
 
 Finally, HBaseConfig can be instantiated from an existing `org.apache.hadoop.conf.Configuration`
 
@@ -111,9 +124,9 @@ The output, like `sc.hbase[A]`, is a `RDD[(String, Map[String, Map[String, A]])]
 Finally, there is a lower level access to the raw `org.apache.hadoop.hbase.client.Result` instances. For this, just do
 
     val table = "t1"
-    val rdd = sc.hbaseRaw(table)
+    val rdd = sc.hbase(table)
 
-The return value of `sc.hbaseRaw` (note that in this case there is no type parameter) is a `RDD[(String, Result)]`. The first element is the rowkey, while the second one is an instance of `org.apache.hadoop.hbase.client.Result`, so you can use the raw HBase API to query it.
+The return value of `sc.hbase` (note that in this case there is no type parameter) is a `RDD[(String, Result)]`. The first element is the rowkey, while the second one is an instance of `org.apache.hadoop.hbase.client.Result`, so you can use the raw HBase API to query it.
 
 
 ### Writing to HBase
@@ -188,9 +201,3 @@ where `keys` is an `RDD[String]` containing all the row keys and `splitCount` th
 
 `prepareTable` verifies that, if the table exists, it contains the desired column family (returns false otherwise), and optionally takes a snapshot of the table.
 If table does not exist, it computes a list of split keys and creates a new table with these splits and the desired column family.
-
-
-API stability
--------------
-
-The API described above should be considered unstable. The published, non-snapshot version of HBase-RDD may contain a slightly different API, based on comments received for the first version.

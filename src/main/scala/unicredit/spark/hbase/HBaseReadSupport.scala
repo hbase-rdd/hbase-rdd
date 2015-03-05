@@ -57,7 +57,9 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
         val content = columns flatMap { column =>
           val cell = result.getColumnLatestCell(cf.getBytes, column.getBytes)
 
-          allCatch opt { CellUtil.cloneValue(cell) } map { value =>
+          allCatch opt {
+            CellUtil.cloneValue(cell)
+          } map { value =>
             column -> reader.read(value)
           }
         } toMap
@@ -77,10 +79,12 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
       } toMap
     }
 
-  private def makeConf(config: HBaseConfig, table: String) = {
+  private def makeConf(config: HBaseConfig, table: String, columns: Option[String] = None) = {
     val conf = config.get
 
     conf.set(TableInputFormat.INPUT_TABLE, table)
+    if (columns.isDefined)
+      conf.set(TableInputFormat.SCAN_COLUMNS, columns.get)
     conf
   }
 
@@ -94,13 +98,19 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    * nested map which associates column family and column to
    * the value. Columns which are not found are omitted from the map.
    */
-  def hbase[A](table: String, data: Map[String, Set[String]])(implicit config: HBaseConfig, reader: Reads[A]) =
+  def hbase[A](table: String, data: Map[String, Set[String]])(implicit config: HBaseConfig, reader: Reads[A]) = {
 
-    sc.newAPIHadoopRDD(makeConf(config, table), classOf[TableInputFormat],
+    val columns = (for {
+      (cf, cols) <- data
+      col <- cols
+    } yield s"$cf:$col") mkString " "
+
+    sc.newAPIHadoopRDD(makeConf(config, table, Some(columns)), classOf[TableInputFormat],
       classOf[ImmutableBytesWritable], classOf[Result]) map {
         case (key, row) =>
           Bytes.toString(key.get) -> extract(data, row, reader)
       }
+  }
 
   /**
    * Provides an RDD of HBase rows. Here `data` is a set of
@@ -111,13 +121,16 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    * nested map which associated column family and column to
    * the value.
    */
-  def hbaseFull[A](table: String, data: Set[String])(implicit config: HBaseConfig, reader: Reads[A]) =
+  def hbase[A](table: String, data: Set[String])(implicit config: HBaseConfig, reader: Reads[A]) = {
 
-    sc.newAPIHadoopRDD(makeConf(config, table), classOf[TableInputFormat],
+    val families = data mkString " "
+
+    sc.newAPIHadoopRDD(makeConf(config, table, Some(families)), classOf[TableInputFormat],
       classOf[ImmutableBytesWritable], classOf[Result]) map {
         case (key, row) =>
           Bytes.toString(key.get) -> extractRow(data, row, reader)
       }
+  }
 
   /**
    * Provides an RDD of HBase rows, without interpreting the content
@@ -129,7 +142,7 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    *
    * The client can then use the full HBase API to process the result.
    */
-  def hbaseRaw(table: String)(implicit config: HBaseConfig) =
+  def hbase(table: String)(implicit config: HBaseConfig) =
 
     sc.newAPIHadoopRDD(makeConf(config, table), classOf[TableInputFormat],
       classOf[ImmutableBytesWritable], classOf[Result]) map {

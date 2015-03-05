@@ -35,7 +35,7 @@ class HBaseConfig(defaults: Configuration) extends Serializable {
  *
  * The two latter cases are provided for simplicity
  * (ideally a client should not have to deal with the native
- * HBase API). In these cases, we also add two default values.
+ * HBase API).
  *
  * The last constructor contains the minimum information to
  * be able to read and write to the HBase cluster. It can be used
@@ -48,8 +48,6 @@ object HBaseConfig {
     val conf = HBaseConfiguration.create
 
     for ((key, value) <- options) { conf.set(key, value) }
-    conf.setBoolean("hbase.cluster.distributed", true)
-    conf.setInt("hbase.client.scanner.caching", 10000)
 
     apply(conf)
   }
