@@ -13,7 +13,7 @@ Table of contents
 - [A note on types](#a-note-on-types)
 - [Reading from HBase](#reading-from-hbase)
 - [Writing to HBase](#writing-to-hbase)
-- [Bulk loading to HBase](#bulk-loading-to-hbase-using-hfiles)
+- [Bulk loading to HBase](#bulk-load-to-hbase-using-hfiles)
 
 Installation
 ------------
