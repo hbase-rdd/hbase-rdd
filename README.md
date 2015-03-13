@@ -14,6 +14,7 @@ Table of contents
 - [Reading from HBase](#reading-from-hbase)
 - [Writing to HBase](#writing-to-hbase)
 - [Bulk loading to HBase](#bulk-load-to-hbase-using-hfiles)
+- [Example project](https://github.com/unicredit/hbase-rdd-examples)
 
 Installation
 ------------
