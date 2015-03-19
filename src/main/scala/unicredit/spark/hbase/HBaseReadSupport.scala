@@ -18,12 +18,13 @@ package unicredit.spark.hbase
 import scala.util.control.Exception.allCatch
 import scala.collection.JavaConversions._
 
-import org.apache.hadoop.hbase.client.Result
 import org.apache.hadoop.hbase.CellUtil
-import org.apache.hadoop.hbase.mapreduce.TableInputFormat
+import org.apache.hadoop.hbase.client.{ Result, Scan }
+import org.apache.hadoop.hbase.mapreduce.{ TableInputFormat, IdentityTableMapper, TableMapReduceUtil }
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
-
 import org.apache.hadoop.hbase.util.Bytes
+
+import org.apache.hadoop.mapreduce.Job
 
 import org.apache.spark._
 
@@ -82,10 +83,14 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
   private def makeConf(config: HBaseConfig, table: String, columns: Option[String] = None) = {
     val conf = config.get
 
-    conf.set(TableInputFormat.INPUT_TABLE, table)
     if (columns.isDefined)
       conf.set(TableInputFormat.SCAN_COLUMNS, columns.get)
-    conf
+
+    val job = Job.getInstance(conf)
+    val scan = new Scan
+    TableMapReduceUtil.initTableMapperJob(table, scan, classOf[IdentityTableMapper], null, null, job)
+
+    job.getConfiguration
   }
 
   /**
