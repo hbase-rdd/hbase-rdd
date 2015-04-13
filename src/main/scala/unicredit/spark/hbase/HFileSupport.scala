@@ -173,7 +173,7 @@ trait HFileSupport {
   }
 }
 
-case class KeyDuplicatedException(key: String) extends Exception(f"rowkey [${key}] is not unique")
+case class KeyDuplicatedException(key: String) extends Exception(f"rowkey [$key] is not unique")
 
 sealed abstract class HFileRDD extends Serializable {
 
@@ -247,7 +247,7 @@ sealed abstract class HFileRDD extends Serializable {
         // set permissions correctly. This is a workaround for unsecured HBase. It should not
         // be necessary for SecureBulkLoadEndpoint (see https://issues.apache.org/jira/browse/HBASE-8495
         // and http://comments.gmane.org/gmane.comp.java.hadoop.hbase.user/44273)
-        if (f.isDir) FileSystem.mkdirs(fs, new Path(f.getPath, "_tmp"), rwx)
+        if (f.isDirectory) FileSystem.mkdirs(fs, new Path(f.getPath, "_tmp"), rwx)
       }
 
       val lih = new LoadIncrementalHFiles(conf)
@@ -272,7 +272,7 @@ final class HFileSeqRDD[K: ClassTag, V](seqRdd: RDD[(K, Seq[V])]) extends HFileR
   def loadToHBase(tableName: String, cFamilyStr: String, headers: Seq[String])(implicit config: HBaseConfig) = {
     val sc = seqRdd.context
     val headersBytes = sc.broadcast(headers map (_.getBytes))
-    val rdd = seqRdd.map { case (k, v) => (k, headersBytes.value zip v) }
+    val rdd = seqRdd.mapValues(headersBytes.value zip _)
     super.loadToHBase(rdd, tableName, cFamilyStr)
   }
 }
@@ -286,7 +286,7 @@ final class HFileMapRDD[K: ClassTag, C, V](mapRdd: RDD[(K, Map[C, V])]) extends 
    * associates column names to values.
    */
   def loadToHBase(tableName: String, cFamilyStr: String)(implicit config: HBaseConfig) = {
-    val rdd = mapRdd.map { case (k, cv) => (k, cv.toSeq) }
+    val rdd = mapRdd.mapValues(_.toSeq)
     super.loadToHBase(rdd, tableName, cFamilyStr)
   }
 }
