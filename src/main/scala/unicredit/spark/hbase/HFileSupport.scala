@@ -240,15 +240,22 @@ sealed abstract class HFileRDD extends Serializable {
       // prepare HFiles for incremental load
       // set folders permissions read/write/exec for all
       val rwx = new FsPermission("777")
-      val listFiles = fs.listStatus(hFilePath)
-      listFiles foreach { f =>
-        fs.setPermission(f.getPath, rwx)
-        // create a "_tmp" folder that can be used for HFile splitting, so that we can
-        // set permissions correctly. This is a workaround for unsecured HBase. It should not
-        // be necessary for SecureBulkLoadEndpoint (see https://issues.apache.org/jira/browse/HBASE-8495
-        // and http://comments.gmane.org/gmane.comp.java.hadoop.hbase.user/44273)
-        if (f.isDirectory) FileSystem.mkdirs(fs, new Path(f.getPath, "_tmp"), rwx)
+      def setRecursivePermission(path: Path) : Unit = {
+        val listFiles = fs.listStatus(path)
+        listFiles foreach { f =>
+          val p = f.getPath
+          fs.setPermission(p, rwx)
+          if (f.isDirectory && p.getName != "_tmp") {
+            // create a "_tmp" folder that can be used for HFile splitting, so that we can
+            // set permissions correctly. This is a workaround for unsecured HBase. It should not
+            // be necessary for SecureBulkLoadEndpoint (see https://issues.apache.org/jira/browse/HBASE-8495
+            // and http://comments.gmane.org/gmane.comp.java.hadoop.hbase.user/44273)
+            FileSystem.mkdirs(fs, new Path(p, "_tmp"), rwx)
+            setRecursivePermission(p)
+          }
+        }
       }
+      setRecursivePermission(hFilePath)
 
       val lih = new LoadIncrementalHFiles(conf)
       lih.doBulkLoad(hFilePath, hTable)
