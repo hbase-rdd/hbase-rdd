@@ -59,9 +59,9 @@ pomExtra := {
       <url>https://github.com/andreaferretti/</url>
     </developer>
     <developer>
-      <id>fmontecuccolideglierri</id>
+      <id>fralken</id>
       <name>Francesco Montecuccoli Degli Erri</name>
-      <url>https://github.com/fmontecuccolideglierri/</url>
+      <url>https://github.com/fralken/</url>
     </developer>
   </developers>
 }
