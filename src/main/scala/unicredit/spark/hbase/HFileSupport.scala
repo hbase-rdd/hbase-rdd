@@ -30,7 +30,7 @@ import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner
 import org.apache.spark.SparkContext.rddToPairRDDFunctions
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{ Partitioner, SparkContext }
+import org.apache.spark.Partitioner
 
 import scala.collection.JavaConversions.asScalaSet
 
@@ -58,12 +58,9 @@ trait HFileSupport {
    *
    * @return true if table exists, false otherwise
    */
-  def tableExists(tableName: String, cFamily: String)(implicit config: HBaseConfig): Boolean =
-    tableExists(new HBaseAdmin(config.get), tableName, cFamily)
-
-  private def tableExists(admin: HBaseAdmin, tableName: String, cFamily: String): Boolean = {
+  def tableExists(tableName: String, cFamily: String)(implicit config: HBaseConfig): Boolean = {
+    val admin = new HBaseAdmin(config.get)
     if (admin.tableExists(tableName)) {
-      // check if passed cFamily exists
       val families = admin.getTableDescriptor(tableName.getBytes).getFamiliesKeys
       require(families.contains(cFamily.getBytes), s"Table [$tableName] exists but column family [$cFamily] is missing")
       true
@@ -75,28 +72,23 @@ trait HFileSupport {
    *
    * @param tableName name of the table
    */
-  def snapshot(tableName: String)(implicit config: HBaseConfig): Unit =
-    snapshot(new HBaseAdmin(config.get), new HTableDescriptor(TableName.valueOf(tableName)))
+  def snapshot(tableName: String)(implicit config: HBaseConfig): Unit = {
+    val sdf = new SimpleDateFormat("yyyyMMddHHmmss")
+    val suffix = sdf.format(Calendar.getInstance().getTime)
+    snapshot(tableName, s"${tableName}_$suffix")
+  }
 
   /**
    * Takes a snapshot of the table
    *
    * @param tableName name of the table
-   * @param snapShotName name of the snapshot
+   * @param snapshotName name of the snapshot
    */
-  def snapshot(tableName: String, snapShotName: String)(implicit config: HBaseConfig): Unit =
-    snapshot(new HBaseAdmin(config.get), new HTableDescriptor(TableName.valueOf(tableName)), snapShotName)
-
-  private def snapshot(admin: HBaseAdmin, tableDescriptor: HTableDescriptor): Unit = {
-    val sdf = new SimpleDateFormat("yyyyMMddHHmmss")
-    val suffix = sdf.format(Calendar.getInstance().getTime)
+  def snapshot(tableName: String, snapshotName: String)(implicit config: HBaseConfig): Unit = {
+    val admin = new HBaseAdmin(config.get)
+    val tableDescriptor = new HTableDescriptor(TableName.valueOf(tableName))
     val tName = tableDescriptor.getTableName
-    snapshot(admin, tableDescriptor, s"${tName.getNameAsString}_$suffix")
-  }
-
-  private def snapshot(admin: HBaseAdmin, tableDescriptor: HTableDescriptor, snapShotName: String): Unit = {
-    val tName = tableDescriptor.getTableName
-    admin.snapshot(snapShotName, tName)
+    admin.snapshot(snapshotName, tName)
   }
 
   /**
@@ -106,121 +98,33 @@ trait HFileSupport {
    * @param cFamily name of the column family
    * @param splitKeys ordered list of keys that defines region splits
    */
-  def createTable(tableName: String, cFamily: String, splitKeys: Seq[String])(implicit config: HBaseConfig): Unit =
-    createTable(new HBaseAdmin(config.get), new HTableDescriptor(TableName.valueOf(tableName)), cFamily, splitKeys)
-
-  private def createTable(admin: HBaseAdmin, tableDescriptor: HTableDescriptor, cFamily: String, splitKeys: Seq[String]): Unit = {
+  def createTable(tableName: String, cFamily: String, splitKeys: Seq[String])(implicit config: HBaseConfig): Unit = {
+    val admin = new HBaseAdmin(config.get)
+    val tableDescriptor = new HTableDescriptor(TableName.valueOf(tableName))
     tableDescriptor.addFamily(new HColumnDescriptor(cFamily))
     if (splitKeys.isEmpty)
       admin.createTable(tableDescriptor)
     else {
-      val splitKeysBytes = splitKeys.map(_.getBytes).toArray
+      val splitKeysBytes = splitKeys.map(Bytes.toBytes).toArray
       admin.createTable(tableDescriptor, splitKeysBytes)
     }
   }
 
   /**
-   * If the table exists, checks whether it contains the desired column family, and return false otherwise.
-   * If table does not exist, computes the split keys and creates a table with the split keys and the
-   * desired column family.
+   * Given a RDD of keys and the number of requested table's regions, returns an array
+   * of keys that are start keys of the table's regions. The array length is
+   * ''regionsCount-1'' since the start key of the first region is not needed
+   * (since it does not determine a split)
    *
-   * @param sc Spark context needed to compute region splits
-   * @param tableName name of the table
-   * @param cFamily name of the column family
-   * @param filename path of the input tsv file
-   * @param regionSize desired size of table regions, expressed as a number followed by B, K, M, G (e.g. "10G")
-   * @param header name of the row key header, in case the tsv contains headers, it can be null otherwise
-   *               the row key must be the first field in a tsv line
-   * @param takeSnapshot if true and the table exists, take a snapshot of the table
+   * @param rdd RDD of strings representing row keys
+   * @param regionsCount number of regions
    *
-   * @return true if table exists or it is created and has the required column family, false otherwise
+   * @return a sorted sequence of start keys
    */
-  @deprecated("too specific, use the other prepareTable instead", "0.4.3")
-  def prepareTable(sc: SparkContext,
-    tableName: String,
-    cFamily: String,
-    filename: String,
-    regionSize: String,
-    header: String,
-    takeSnapshot: Boolean)(implicit config: HBaseConfig): Boolean =
-    prepareTable(config.get, tableName, cFamily, takeSnapshot, computeSplits(sc, filename, regionSize, header))
-
-  /**
-   * If the table exists, checks whether it contains the desired column family, and return false otherwise.
-   * If table does not exist, computes the split keys and creates a table with the split keys and the
-   * desired column family.
-   *
-   * @param tableName name of the table
-   * @param cFamily name of the column family
-   * @param keys RDD containing all the row keys, used to compute split keys in case the table does not exist,
-   *             not used otherwise
-   * @param splitsCount desired number of splits for the table, not used if table exists
-   * @param takeSnapshot if true and the table exists, take a snapshot of the table
-   *
-   * @return true if table exists or it is created and has the required column family, false otherwise
-   */
-  def prepareTable(tableName: String,
-    cFamily: String,
-    keys: RDD[String],
-    splitsCount: Int,
-    takeSnapshot: Boolean)(implicit config: HBaseConfig): Boolean =
-    prepareTable(config.get, tableName, cFamily, takeSnapshot, computeSplits(keys, splitsCount))
-
-  private def prepareTable(conf: Configuration,
-    tableName: String,
-    cFamily: String,
-    takeSnapshot: Boolean,
-    computeSplits: => Seq[String]): Boolean = {
-    val admin = new HBaseAdmin(conf)
-    val tableDescriptor = new HTableDescriptor(TableName.valueOf(tableName))
-
-    if (tableExists(admin, tableName, cFamily)) {
-      if (takeSnapshot) snapshot(admin, tableDescriptor)
-    } else {
-      createTable(admin, tableDescriptor, cFamily, computeSplits)
-    }
-    true
-  }
-
-  def computeSplits(rdd: RDD[String], splitsCount: Int): Seq[String] = {
-    rdd.sortBy(s => s, numPartitions = splitsCount)
+  def computeSplits(rdd: RDD[String], regionsCount: Int): Seq[String] = {
+    rdd.sortBy(s => s, numPartitions = regionsCount)
       .mapPartitions(_.take(1))
       .collect().toList.tail
-  }
-
-  @deprecated("too specific, use the other computeSplits instead", "0.4.3")
-  def computeSplits(sc: SparkContext, filename: String, regionSizeStr: String, header: String)(implicit config: HBaseConfig): Seq[String] = {
-
-    def computeSize(sizeString: String) = {
-      val sizeReg = """^([0-9]+)(B|K|M|G)?$""".r
-      sizeReg findFirstMatchIn sizeString match {
-        case Some(m) =>
-          val num = m.group(1).toLong
-          m.group(2) match {
-            case "B" => num
-            case "K" => num * 1024
-            case "M" => num * 1024 * 1024
-            case "G" => num * 1024 * 1024 * 1024
-            case _ => num
-          }
-        case None => throw new Exception
-      }
-    }
-
-    val file = new Path(filename)
-    val fs = file.getFileSystem(config.get)
-    val fileLength = fs.getContentSummary(file).getLength
-
-    val regionSize = computeSize(regionSizeStr)
-    val splitsCount = fileLength / regionSize + 1
-
-    val input = sc.textFile(filename)
-      .map { line => line.split("\t").head }
-
-    val inputNoHeader = if (header != null) input.filter(_ != header) else input
-    val splits = computeSplits(inputNoHeader, splitsCount.toInt)
-
-    splits
   }
 }
 
