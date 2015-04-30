@@ -5,40 +5,41 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.{ SparkContext, SparkConf }
 import unicredit.spark.hbase._
 
-case class Config(quorum: String = "localhost",
-  rootdir: String = "hdfs://localhost:8020/hbase",
-  input_path: String = "input_tsv",
-  table: String = "output_table",
-  cfamily: String = "cf",
-  headers: List[String] = List("col1", "col2", "col3"),
-  region_size: String = "1G")
-
-object Config {
-  /**
-   * Very basic argument parser
-   *
-   * @param args list of command line arguments
-   * @param c case class to be initialized with parameters
-   * @return initialized case class
-   */
-  def parse(args: List[String], c: Config): Config = {
-    if (args.length < 2) c
-    else args match {
-      case "--quorum" :: rest => parse(rest.tail, c.copy(quorum = rest.head))
-      case "--rootdir" :: rest => parse(rest.tail, c.copy(rootdir = rest.head))
-      case "--input_path" :: rest => parse(rest.tail, c.copy(input_path = rest.head))
-      case "--table" :: rest => parse(rest.tail, c.copy(table = rest.head))
-      case "--cfamily" :: rest => parse(rest.tail, c.copy(cfamily = rest.head))
-      case "--headers" :: rest => parse(rest.tail, c.copy(headers = rest.head.split(",").toList))
-      case "--region_size" :: rest => parse(rest.tail, c.copy(region_size = rest.head))
-      case _ => println("Wrong parameters!"); sys.exit(1)
-    }
-  }
-}
 /**
  * Example: bulk load to hbase of a tab separated file
  */
 object ImportTsvToHfiles extends App {
+
+  case class Config(quorum: String = "localhost",
+                    rootdir: String = "hdfs://localhost:8020/hbase",
+                    input_path: String = "input_tsv",
+                    table: String = "output_table",
+                    cfamily: String = "cf",
+                    headers: List[String] = List("col1", "col2", "col3"),
+                    region_size: String = "1G")
+
+  object Config {
+    /**
+     * Very basic argument parser
+     *
+     * @param args list of command line arguments
+     * @param c case class to be initialized with parameters
+     * @return initialized case class
+     */
+    def parse(args: List[String], c: Config): Config = {
+      if (args.length < 2) c
+      else args match {
+        case "--quorum" :: rest => parse(rest.tail, c.copy(quorum = rest.head))
+        case "--rootdir" :: rest => parse(rest.tail, c.copy(rootdir = rest.head))
+        case "--input_path" :: rest => parse(rest.tail, c.copy(input_path = rest.head))
+        case "--table" :: rest => parse(rest.tail, c.copy(table = rest.head))
+        case "--cfamily" :: rest => parse(rest.tail, c.copy(cfamily = rest.head))
+        case "--headers" :: rest => parse(rest.tail, c.copy(headers = rest.head.split(",").toList))
+        case "--region_size" :: rest => parse(rest.tail, c.copy(region_size = rest.head))
+        case _ => println("Wrong parameters!"); sys.exit(1)
+      }
+    }
+  }
 
   /**
    * Estimates the number of table's regions based on the size of the input file
