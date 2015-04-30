@@ -61,8 +61,8 @@ trait HBaseWriteSupport {
   }
 }
 
-sealed abstract class HBaseWriteHelpers[A](put: PutAdder[A]) {
-  protected def convert(id: String, values: Map[String, Map[String, A]]) = {
+sealed abstract class HBaseWriteHelpers[A] {
+  protected def convert(id: String, values: Map[String, Map[String, A]], put: PutAdder[A]) = {
     def bytes(s: String) = Bytes.toBytes(s)
 
     val p = new Put(bytes(id))
@@ -89,7 +89,7 @@ sealed abstract class HBaseWriteHelpers[A](put: PutAdder[A]) {
   }
 }
 
-final class HBaseRDDSimple[A](val rdd: RDD[(String, Map[String, A])], val put: PutAdder[A]) extends HBaseWriteHelpers[A](put) with Serializable {
+final class HBaseRDDSimple[A](val rdd: RDD[(String, Map[String, A])], val put: PutAdder[A]) extends HBaseWriteHelpers[A] with Serializable {
   /**
    * Writes the underlying RDD to HBase.
    *
@@ -109,11 +109,11 @@ final class HBaseRDDSimple[A](val rdd: RDD[(String, Map[String, A])], val put: P
     val job = Job.getInstance(conf, this.getClass.getName.split('$')(0))
     job.setOutputFormatClass(classOf[TableOutputFormat[String]])
 
-    rdd.flatMap({ case (k, v) => convert(k, Map(family -> v)) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
+    rdd.flatMap({ case (k, v) => convert(k, Map(family -> v), put) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
   }
 }
 
-final class HBaseRDD[A](val rdd: RDD[(String, Map[String, Map[String, A]])], val put: PutAdder[A]) extends HBaseWriteHelpers[A](put) with Serializable {
+final class HBaseRDD[A](val rdd: RDD[(String, Map[String, Map[String, A]])], val put: PutAdder[A]) extends HBaseWriteHelpers[A] with Serializable {
   /**
    * Writes the underlying RDD to HBase.
    *
@@ -128,6 +128,6 @@ final class HBaseRDD[A](val rdd: RDD[(String, Map[String, Map[String, A]])], val
     val job = Job.getInstance(conf, this.getClass.getName.split('$')(0))
     job.setOutputFormatClass(classOf[TableOutputFormat[String]])
 
-    rdd.flatMap({ case (k, v) => convert(k, v) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
+    rdd.flatMap({ case (k, v) => convert(k, v, put) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
   }
 }
