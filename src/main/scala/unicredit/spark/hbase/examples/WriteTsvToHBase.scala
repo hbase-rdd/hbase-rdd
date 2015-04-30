@@ -42,26 +42,24 @@ object WriteTsvToHBase extends App {
   val c = Config.parse(args.toList, Config())
   implicit lazy val hbaseconfig = HBaseConfig(c)
 
-    val sparkConf = new SparkConf().setAppName(mainClass)
-    val sc = new SparkContext(sparkConf)
+  val sparkConf = new SparkConf().setAppName(mainClass)
+  val sc = new SparkContext(sparkConf)
 
-    assert(c.headers == List("col1", "col2", "col3"))
-
-    val hb = sc.broadcast(c.headers map (x => x))
+  if (!c.headers.isEmpty) {
+    val columns = sc.broadcast(c.headers.tail)
 
     val input = sc.textFile(c.input_path)
       .map { line =>
-      val fields = line.split("\t").toSeq
+        val fields = line.split("\t").toSeq
 
-      // add a timestamp=1L to values
-      val values = fields.tail.map(v => (v, 1L))
-      assert(hb.value == List("col1", "col2", "col3"))
-      val z = List("col1", "col2", "col3") zip values
-      val cv = Map(z: _*)
-      (fields.head, cv)
-    }
+        // add a timestamp=1L to values
+        val values = fields.tail.map(v => (v, 1L))
+
+        (fields.head, Map(columns.value zip values: _*))
+      }
 
     input.tohbase(c.table, c.cfamily)
+  }
 
-    sc.stop()
+  sc.stop()
 }
