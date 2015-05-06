@@ -202,7 +202,18 @@ But what about step 1? For this, a few helper methods come to the rescue.
 - `tableExists(tableName: String, cFamily: String)`: checks if the table exists, and returns true or false accordingly. If the table `tableName` exists but the column family `cFamily` does not, an `IllegalArgumentException is thrown
 - `snapshot(tableName: String)`: creates a snapshot of table `tableName`, named `<tablename>_yyyyMMddHHmmss` (suffix is the date and time of the snapshot operation)
 - `snapshot(tableName: String, snapshotName: String)`: creates a snapshot of table `tableName`, named `snapshotName
-- `createTable(tableName: String, cFamily: String, splitKeys: Seq[String])`: creates a table `tableName` with column family `cƒamily`and regions defined by a sorted sequence of split keys `splitKeys`
+- `createTable(tableName: String, cFamily: String, splitKeys: Seq[String])`: creates a table `tableName` with column family `cFamily`and regions defined by a sorted sequence of split keys `splitKeys`
 - `computeSplits(rdd: RDD[String], regionsCount: Int)`: given an `RDD`of keys and desired number of regions (`regionsCount`), returns a sorted sequence of split keys, to be used with `createTable()`
  
-You can have a look at `ImportTsvToHFiles.scala` in `examples` package on how to bulk load a TSV file from `hdfs` to `hbase`
+You can have a look at `ImportTsvToHFiles.scala` in `examples` package on how to bulk load a TSV file from `Hdfs` to `HBase`
+
+#### Set the Number of HFiles per Region per Family
+
+For best performance, HBase should use 1 HFile per region per family. On the other hand, the more HFiles you use, the more partitions you have in your Spark job, hence Spark tasks run faster and consume less memory heap.
+You can fine tune this opposite requirement by passing an additional optional parameter to `loadtohbase()` method, `numFilesPerRegion=<N>` where N (default is 1) is a number between 1 and `hbase.mapreduce.bulkload.max.hfiles.perRegion.perFamily` parameter (default is 32), e.g.
+
+    rdd.loadtohbase(table, cf, numFilesPerRegion=32)
+
+or
+
+    rdd.loadtohbase(table, cf, headers, numFilesPerRegion=32)
