@@ -175,40 +175,34 @@ Now you can perform steps 2 to 4 with a call to `loadToHBase`, like
 
     val table = "t1"
     val cf = "cf1"
-    val rdd: RDD[(K, Map[C, V])] = ...
-    rdd.loadToHBase(table, cf)
+    val rdd: RDD[(String, Map[String, A])] = ...
+    rdd.loadtohbase(table, cf)
 
 or, if you have a fixed set of columns, like
 
     val table = "t1"
     val cf = "cf1"
     val headers: Seq[String] = ...
-    val rdd: RDD[(K, Seq[V])] = ...
-    rdd.loadToHBase(table, cf, headers)
+    val rdd: RDD[(String, Seq[A])] = ...
+    rdd.loadtohbase(table, cf, headers)
 
 where `headers` are column names for `Seq[V]` values.
 The only limitation is that you can work with only one column family.
 
-But what about step 1? For this, `prepareTable` comes to the rescue. If your input data is a tsv file on Hdfs, you can write
+If you need to write timestamps, you can use a tuple `(A, Long)` in your `RDD`, where the second element represents the timestamp, like
 
-    if (prepareTable(table, cf, input_path, region_size, header, takeSnapshot = false)) {
+    val rdd: RDD[(String, Map[String, (A, Long)])] = ...
 
-      ...
+or, in case of a fixed set of columns, like
 
-      rdd.loadToHBase(table, cf, headers)
-    }
+    val rdd: RDD[(String, Seq[(A, Long)])] = ...
 
-where `input_path` is the path to the file, `region_size` is the desired size of regions, represented as a number followed by B, K, M, G ("10G" is a good value), `header` is the name of the row key field (for tsv with headers, it can be null otherwise), set `takeSnapshot` to `true` if you want to take a snapshot of the existing table before loading new data.
-More generally, you can use instead
-
-    if (prepareTable(table, cf, keys, splitsCount, takeSnapshot = false)) {
-
-      ...
-
-      rdd.loadToHBase(table, cf, headers)
-    }
-
-where `keys` is an `RDD[String]` containing all the row keys and `splitCount` the number of splits that you want for a new table (that you must compute in some way) and it is not relevant if the table exists.
-
-`prepareTable` verifies that, if the table exists, it contains the desired column family (returns false otherwise), and optionally takes a snapshot of the table.
-If table does not exist, it computes a list of split keys and creates a new table with these splits and the desired column family.
+But what about step 1? For this, a few helper methods come to the rescue.
+ 
+- `tableExists(tableName: String, cFamily: String)`: checks if the table exists, and returns true or false accordingly. If the table `tableName` exists but the column family `cFamily` does not, an `IllegalArgumentException is thrown
+- `snapshot(tableName: String)`: creates a snapshot of table `tableName`, named `<tablename>_yyyyMMddHHmmss` (suffix is the date and time of the snapshot operation)
+- `snapshot(tableName: String, snapshotName: String)`: creates a snapshot of table `tableName`, named `snapshotName
+- `createTable(tableName: String, cFamily: String, splitKeys: Seq[String])`: creates a table `tableName` with column family `cƒamily`and regions defined by a sorted sequence of split keys `splitKeys`
+- `computeSplits(rdd: RDD[String], regionsCount: Int)`: given an `RDD`of keys and desired number of regions (`regionsCount`), returns a sorted sequence of split keys, to be used with `createTable()`
+ 
+You can have a look at `ImportTsvToHFiles.scala` in `examples` package on how to bulk load a TSV file from `hdfs` to `hbase`

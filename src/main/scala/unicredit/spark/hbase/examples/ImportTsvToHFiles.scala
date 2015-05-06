@@ -8,7 +8,7 @@ import unicredit.spark.hbase._
 /**
  * Example: bulk load to hbase of a tab separated file
  */
-object ImportTsvToHfiles extends App {
+object ImportTsvToHFiles extends App {
 
   case class Config(quorum: String = "localhost",
                     rootdir: String = "hdfs://localhost:8020/hbase",
