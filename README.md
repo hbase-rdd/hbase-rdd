@@ -157,6 +157,14 @@ A simplified form is available in the case that one only needs to write on a sin
     val rdd: RDD[(String, Map[String, A])] = ...
     rdd.tohbase(table, cf)
 
+or, if you have a fixed set of columns, like
+
+    val table = "t1"
+    val cf = "cf1"
+    val headers: Seq[String] = ...
+    val rdd: RDD[(String, Seq[A])] = ...
+    rdd.tohbase(table, cf, headers)
+
 If you need to write timestamps, you can use a tuple (A, Long) in your RDD, where the second element represents the timestamp, like
 
     val rdd: RDD[(String, Map[String, Map[String, (A, Long)]])] = ...
@@ -164,6 +172,10 @@ If you need to write timestamps, you can use a tuple (A, Long) in your RDD, wher
 or, for the simplified form, like
 
     val rdd: RDD[(String, Map[String, (A, Long)])] = ...
+
+or, with a fixed set of columns
+
+    val rdd: RDD[(String, Seq[(A, Long)])] = ...
 
 You can have a look at `WriteTsvToHBase.scala` in `examples` package on how to write a TSV file from `Hdfs` to `HBase`
 
