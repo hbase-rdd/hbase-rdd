@@ -144,18 +144,18 @@ The return value of `sc.hbase` (note that in this case there is no type paramete
 
 In order to write to HBase, some methods are added on certain types of RDD.
 
-The first one is parallel to the way you read from HBase. Assume you have an `RDD[(String, Map[String, Map[String, A]])]` and there is a `Writes[A]` in scope. Then you can write to HBase with the method `tohbase`, like
+The first one is parallel to the way you read from HBase. Assume you have an `RDD[(String, Map[String, Map[String, A]])]` and there is a `Writes[A]` in scope. Then you can write to HBase with the method `toHBase`, like
 
     val table = "t1"
     val rdd: RDD[(String, Map[String, Map[String, A]])] = ...
-    rdd.tohbase(table)
+    rdd.toHBase(table)
 
 A simplified form is available in the case that one only needs to write on a single column family. Then a similar method is available on `RDD[(String, Map[String, A])]`, which can be used as follows
 
     val table = "t1"
     val cf = "cf1"
     val rdd: RDD[(String, Map[String, A])] = ...
-    rdd.tohbase(table, cf)
+    rdd.toHBase(table, cf)
 
 or, if you have a fixed set of columns, like
 
@@ -163,7 +163,7 @@ or, if you have a fixed set of columns, like
     val cf = "cf1"
     val headers: Seq[String] = ...
     val rdd: RDD[(String, Seq[A])] = ...
-    rdd.tohbase(table, cf, headers)
+    rdd.toHBase(table, cf, headers)
 
 If you need to write timestamps, you can use a tuple (A, Long) in your RDD, where the second element represents the timestamp, like
 

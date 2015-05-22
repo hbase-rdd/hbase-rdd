@@ -116,7 +116,7 @@ final class HBaseRDDSimple[A](val rdd: RDD[(String, Map[String, A])], val put: P
    * where the first value is the rowkey and the second is a map that
    * associates column names to values.
    */
-  def tohbase(table: String, family: String)(implicit config: HBaseConfig) = {
+  def toHBase(table: String, family: String)(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
     createTable(table, List(family), new HBaseAdmin(conf))
@@ -136,7 +136,7 @@ final class HBaseRDDFixed[A](val rdd: RDD[(String, Seq[A])], val put: PutAdder[A
    * where the first value is the rowkey and the second is a sequence of values
    * that are associated to a sequence of headers.
    */
-  def tohbase(table: String, family: String, headers: Seq[String])(implicit config: HBaseConfig) = {
+  def toHBase(table: String, family: String, headers: Seq[String])(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
     createTable(table, List(family), new HBaseAdmin(conf))
@@ -156,7 +156,7 @@ final class HBaseRDD[A](val rdd: RDD[(String, Map[String, Map[String, A]])], val
    * where the first value is the rowkey and the second is a nested map that associates
    * column families and column names to values.
    */
-  def tohbase(table: String)(implicit config: HBaseConfig) = {
+  def toHBase(table: String)(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
 
