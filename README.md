@@ -171,12 +171,12 @@ A better approach is to create HFiles instead, and than call LoadIncrementalHFil
 
 4. Cleanup temporary files and folders
 
-Now you can perform steps 2 to 4 with a call to `loadToHBase`, like
+Now you can perform steps 2 to 4 with a call to `toHBaseBulk`, like
 
     val table = "t1"
     val cf = "cf1"
     val rdd: RDD[(String, Map[String, A])] = ...
-    rdd.loadtohbase(table, cf)
+    rdd.toHBaseBulk(table, cf)
 
 or, if you have a fixed set of columns, like
 
@@ -184,7 +184,7 @@ or, if you have a fixed set of columns, like
     val cf = "cf1"
     val headers: Seq[String] = ...
     val rdd: RDD[(String, Seq[A])] = ...
-    rdd.loadtohbase(table, cf, headers)
+    rdd.toHBaseBulk(table, cf, headers)
 
 where `headers` are column names for `Seq[V]` values.
 The only limitation is that you can work with only one column family.
@@ -212,8 +212,8 @@ You can have a look at `ImportTsvToHFiles.scala` in `examples` package on how to
 For best performance, HBase should use 1 HFile per region per family. On the other hand, the more HFiles you use, the more partitions you have in your Spark job, hence Spark tasks run faster and consume less memory heap.
 You can fine tune this opposite requirement by passing an additional optional parameter to `loadtohbase()` method, `numFilesPerRegion=<N>` where N (default is 1) is a number between 1 and `hbase.mapreduce.bulkload.max.hfiles.perRegion.perFamily` parameter (default is 32), e.g.
 
-    rdd.loadtohbase(table, cf, numFilesPerRegion=32)
+    rdd.toHBaseBulk(table, cf, numFilesPerRegion=32)
 
 or
 
-    rdd.loadtohbase(table, cf, headers, numFilesPerRegion=32)
+    rdd.toHBaseBulk(table, cf, headers, numFilesPerRegion=32)

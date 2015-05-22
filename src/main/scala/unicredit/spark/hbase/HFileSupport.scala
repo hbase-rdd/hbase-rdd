@@ -15,17 +15,16 @@
 
 package unicredit.spark.hbase
 
-import java.text.SimpleDateFormat
-import java.util.{ Calendar, TreeSet, UUID }
+import java.util.{ TreeSet, UUID }
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.fs.{ FileSystem, Path }
-import org.apache.hadoop.hbase.client.{ HBaseAdmin, HTable }
+import org.apache.hadoop.hbase.client.HTable
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.mapreduce.{ HFileOutputFormat2, LoadIncrementalHFiles }
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.{ HColumnDescriptor, HTableDescriptor, KeyValue, TableName }
+import org.apache.hadoop.hbase.KeyValue
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner
 import org.apache.spark.SparkContext.rddToPairRDDFunctions
@@ -50,85 +49,9 @@ trait HFileSupport {
   implicit def mapRddToHFileRddT[A](rdd: RDD[(String, Map[String, (A, Long)])])(implicit writer: Writes[A]): HFileMapRDD[(A, Long)] =
     new HFileMapRDD[(A, Long)](rdd, { (k: Array[Byte], cf: Array[Byte], q: Array[Byte], v: (A, Long)) => new KeyValue(k, cf, q, v._2, writer.write(v._1)) })
 
-  /**
-   * Checks if table exists, and requires that it contains the desired column family
-   *
-   * @param tableName name of the table
-   * @param cFamily name of the column family
-   *
-   * @return true if table exists, false otherwise
-   */
-  def tableExists(tableName: String, cFamily: String)(implicit config: HBaseConfig): Boolean = {
-    val admin = new HBaseAdmin(config.get)
-    if (admin.tableExists(tableName)) {
-      val families = admin.getTableDescriptor(tableName.getBytes).getFamiliesKeys
-      require(families.contains(cFamily.getBytes), s"Table [$tableName] exists but column family [$cFamily] is missing")
-      true
-    } else false
-  }
-
-  /**
-   * Takes a snapshot of the table, the snapshot's name has format "tableName_yyyyMMddHHmmss"
-   *
-   * @param tableName name of the table
-   */
-  def snapshot(tableName: String)(implicit config: HBaseConfig): Unit = {
-    val sdf = new SimpleDateFormat("yyyyMMddHHmmss")
-    val suffix = sdf.format(Calendar.getInstance().getTime)
-    snapshot(tableName, s"${tableName}_$suffix")
-  }
-
-  /**
-   * Takes a snapshot of the table
-   *
-   * @param tableName name of the table
-   * @param snapshotName name of the snapshot
-   */
-  def snapshot(tableName: String, snapshotName: String)(implicit config: HBaseConfig): Unit = {
-    val admin = new HBaseAdmin(config.get)
-    val tableDescriptor = new HTableDescriptor(TableName.valueOf(tableName))
-    val tName = tableDescriptor.getTableName
-    admin.snapshot(snapshotName, tName)
-  }
-
-  /**
-   * Creates a table with a column family and made of one or more regions
-   *
-   * @param tableName name of the table
-   * @param cFamily name of the column family
-   * @param splitKeys ordered list of keys that defines region splits
-   */
-  def createTable(tableName: String, cFamily: String, splitKeys: Seq[String])(implicit config: HBaseConfig): Unit = {
-    val admin = new HBaseAdmin(config.get)
-    val tableDescriptor = new HTableDescriptor(TableName.valueOf(tableName))
-    tableDescriptor.addFamily(new HColumnDescriptor(cFamily))
-    if (splitKeys.isEmpty)
-      admin.createTable(tableDescriptor)
-    else {
-      val splitKeysBytes = splitKeys.map(Bytes.toBytes).toArray
-      admin.createTable(tableDescriptor, splitKeysBytes)
-    }
-  }
-
-  /**
-   * Given a RDD of keys and the number of requested table's regions, returns an array
-   * of keys that are start keys of the table's regions. The array length is
-   * ''regionsCount-1'' since the start key of the first region is not needed
-   * (since it does not determine a split)
-   *
-   * @param rdd RDD of strings representing row keys
-   * @param regionsCount number of regions
-   *
-   * @return a sorted sequence of start keys
-   */
-  def computeSplits(rdd: RDD[String], regionsCount: Int): Seq[String] = {
-    rdd.sortBy(s => s, numPartitions = regionsCount)
-      .mapPartitions(_.take(1))
-      .collect().toList.tail
-  }
 }
 
-case class KeyDuplicatedException(key: String) extends Exception(f"rowkey [$key] is not unique")
+case class KeyDuplicatedException(key: String) extends Exception(s"rowkey [$key] is not unique")
 
 sealed abstract class HFileRDD extends Serializable {
 
@@ -148,7 +71,7 @@ sealed abstract class HFileRDD extends Serializable {
     override def numPartitions: Int = splits.length * fraction
   }
 
-  protected def loadtohbase[A](rdd: RDD[(String, Map[String, A])],
+  protected def toHBaseBulk[A](rdd: RDD[(String, Map[String, A])],
     tableName: String, cFamily: String, numFilesPerRegion: Int,
     kv: KeyValueWrapper[A])(implicit config: HBaseConfig) = {
     def bytes(s: String) = Bytes.toBytes(s)
@@ -226,11 +149,11 @@ final class HFileSeqRDD[A](seqRdd: RDD[(String, Seq[A])], kv: KeyValueWrapper[A]
    * where the first value is the rowkey and the second is a sequence of values to be
    * associated to column names in `headers`.
    */
-  def loadtohbase(tableName: String, cFamily: String, headers: Seq[String], numFilesPerRegion: Int = 1)(implicit config: HBaseConfig) = {
+  def toHBaseBulk(tableName: String, cFamily: String, headers: Seq[String], numFilesPerRegion: Int = 1)(implicit config: HBaseConfig) = {
     val sc = seqRdd.context
     val headersBytes = sc.broadcast(headers)
     val mapRdd = seqRdd.mapValues(v => Map(headersBytes.value zip v: _*))
-    super.loadtohbase(mapRdd, tableName, cFamily, numFilesPerRegion, kv)
+    super.toHBaseBulk(mapRdd, tableName, cFamily, numFilesPerRegion, kv)
   }
 }
 
@@ -242,7 +165,7 @@ final class HFileMapRDD[A](mapRdd: RDD[(String, Map[String, A])], kv: KeyValueWr
    * where the first value is the rowkey and the second is a map that
    * associates column names to values.
    */
-  def loadtohbase(tableName: String, cFamily: String, numFilesPerRegion: Int = 1)(implicit config: HBaseConfig) = {
-    super.loadtohbase(mapRdd, tableName, cFamily, numFilesPerRegion, kv)
+  def toHBaseBulk(tableName: String, cFamily: String, numFilesPerRegion: Int = 1)(implicit config: HBaseConfig) = {
+    super.toHBaseBulk(mapRdd, tableName, cFamily, numFilesPerRegion, kv)
   }
 }
