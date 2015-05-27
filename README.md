@@ -137,7 +137,7 @@ Finally, there is a lower level access to the raw `org.apache.hadoop.hbase.clien
     val table = "t1"
     val rdd = sc.hbase(table)
 
-HBase side filter are also supported by providing a custom Filter or Scan object:
+HBase side filters are also supported by providing a custom Filter or Scan object:
 
     val filter = new PrefixFilter(Bytes.toBytes("abc"))
     val table = "t1"
