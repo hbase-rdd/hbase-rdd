@@ -124,13 +124,15 @@ In general, `sc.hbase[A]` has a type parameter which represents the type of the 
       // Try(k -> v("cf1")("col2")).toOption
     })
 
-A second possibility is to get the whole column families. This can be useful if you do not know in advance which will be the column names. You can do this with the method `sc.hbaseFull[A]`, like
+A second possibility is to get the whole column families. This can be useful if you do not know in advance which will be the column names. You can do this with the method `sc.hbase[A]`, like
 
     val table = "t1"
     val families = Set("cf1", "cf2")
     val rdd = sc.hbase[String](table, families)
 
 The output, like `sc.hbase[A]`, is a `RDD[(String, Map[String, Map[String, A]])]`.
+
+If you need to read also timestamps, you can use in both cases `sc.hbaseTS[A]` and obtain a `RDD[(String, Map[String, Map[String, (A, Long)]])]`. Each element of the resulting RDD is a key/value pair, where the key is the rowkey from HBase and the value is a nested map which associates column family and column to the tuple (value, timestamp).
 
 Finally, there is a lower level access to the raw `org.apache.hadoop.hbase.client.Result` instances. For this, just do
 
