@@ -3,7 +3,7 @@ HBase RDD
 
 ![logo](https://raw.githubusercontent.com/unicredit/hbase-rdd/master/docs/logo.png)
 
-This project allows to connect Apache Spark to HBase. Currently it is compiled with Scala 2.10, using the versions of Spark and HBase available on CDH5.1. Version `0.2.2-SNAPSHOT` of this project works on CDH5.0. Other combinations of versions will be made available in the future.
+This project allows to connect Apache Spark to HBase. Currently it is compiled with Scala 2.10, using the versions of Spark and HBase available on CDH5.3. Version `0.4.0` of this project works on CDH5.1 and version `0.2.2-SNAPSHOT` works on CDH5.0. Other combinations of versions will be made available in the future.
 
 Table of contents
 -----------------
@@ -23,7 +23,7 @@ This guide assumes you are using SBT. Usage of similar tools like Maven or Leini
 
 HBase RDD can be added as a dependency in sbt with:
 
-    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.4.3"
+    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.4.99"
 
 Currently, the project depends on the following artifacts:
 
