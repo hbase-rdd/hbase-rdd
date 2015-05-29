@@ -144,18 +144,40 @@ The return value of `sc.hbase` (note that in this case there is no type paramete
 
 In order to write to HBase, some methods are added on certain types of RDD.
 
-The first one is parallel to the way you read from HBase. Assume you have an `RDD[(String, Map[String, Map[String, A]])]` and there is a `Writes[A]` in scope. Then you can write to HBase with the method `tohbase`, like
+The first one is parallel to the way you read from HBase. Assume you have an `RDD[(String, Map[String, Map[String, A]])]` and there is a `Writes[A]` in scope. Then you can write to HBase with the method `toHBase`, like
 
     val table = "t1"
     val rdd: RDD[(String, Map[String, Map[String, A]])] = ...
-    rdd.tohbase(table)
+    rdd.toHBase(table)
 
 A simplified form is available in the case that one only needs to write on a single column family. Then a similar method is available on `RDD[(String, Map[String, A])]`, which can be used as follows
 
     val table = "t1"
     val cf = "cf1"
     val rdd: RDD[(String, Map[String, A])] = ...
-    rdd.tohbase(table, cf)
+    rdd.toHBase(table, cf)
+
+or, if you have a fixed set of columns, like
+
+    val table = "t1"
+    val cf = "cf1"
+    val headers: Seq[String] = ...
+    val rdd: RDD[(String, Seq[A])] = ...
+    rdd.toHBase(table, cf, headers)
+
+If you need to write timestamps, you can use a tuple (A, Long) in your RDD, where the second element represents the timestamp, like
+
+    val rdd: RDD[(String, Map[String, Map[String, (A, Long)]])] = ...
+
+or, for the simplified form, like
+
+    val rdd: RDD[(String, Map[String, (A, Long)])] = ...
+
+or, with a fixed set of columns
+
+    val rdd: RDD[(String, Seq[(A, Long)])] = ...
+
+You can have a look at `WriteTsvToHBase.scala` in [hbase-rdd-examples project](https://github.com/unicredit/hbase-rdd-examples) on how to write a TSV file from `Hdfs` to `HBase`
 
 
 ### Bulk load to HBase, using HFiles
@@ -205,7 +227,7 @@ But what about step 1? For this, a few helper methods come to the rescue.
 - `createTable(tableName: String, cFamily: String, splitKeys: Seq[String])`: creates a table `tableName` with column family `cFamily`and regions defined by a sorted sequence of split keys `splitKeys`
 - `computeSplits(rdd: RDD[String], regionsCount: Int)`: given an `RDD`of keys and desired number of regions (`regionsCount`), returns a sorted sequence of split keys, to be used with `createTable()`
  
-You can have a look at `ImportTsvToHFiles.scala` in `examples` package on how to bulk load a TSV file from `Hdfs` to `HBase`
+You can have a look at `ImportTsvToHFiles.scala` in [hbase-rdd-examples project](https://github.com/unicredit/hbase-rdd-examples) on how to bulk load a TSV file from `Hdfs` to `HBase`
 
 #### Set the Number of HFiles per Region per Family
 
