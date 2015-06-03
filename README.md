@@ -139,6 +139,13 @@ Finally, there is a lower level access to the raw `org.apache.hadoop.hbase.clien
     val table = "t1"
     val rdd = sc.hbase(table)
 
+HBase side filters are also supported by providing a custom Filter or Scan object:
+
+    val filter = new PrefixFilter(Bytes.toBytes("abc"))
+    val table = "t1"
+    val families = Set("cf1", "cf2")
+    val rdd = sc.hbase[String](table, families, filter)
+
 The return value of `sc.hbase` (note that in this case there is no type parameter) is a `RDD[(String, Result)]`. The first element is the rowkey, while the second one is an instance of `org.apache.hadoop.hbase.client.Result`, so you can use the raw HBase API to query it.
 
 
