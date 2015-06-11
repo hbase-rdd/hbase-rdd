@@ -15,4 +15,4 @@
 
 package unicredit.spark
 
-package object hbase extends HBaseWriteSupport with HBaseReadSupport with HFileSupport
+package object hbase extends HBaseWriteSupport with HBaseReadSupport with HFileSupport with HBaseUtils
