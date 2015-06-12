@@ -57,12 +57,12 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
   private def extract[A, B](data: Map[String, Set[String]], result: Result, read: Cell => B) =
     data map {
       case (cf, columns) =>
-        val content = columns map { column =>
-          (column, result.getColumnLatestCell(cf.getBytes, column.getBytes))
-        } filter { case (column, cell) => //Ignoring non-existing columns
-          cell != null
-        } map { case (column, cell) =>
-          column -> read(cell)
+        val content = columns flatMap { column =>
+          Option {
+            result.getColumnLatestCell(cf.getBytes, column.getBytes)
+          } map { cell =>
+            column -> read(cell)
+          }
         } toMap
 
         cf -> content
