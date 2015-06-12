@@ -23,7 +23,7 @@ This guide assumes you are using SBT. Usage of similar tools like Maven or Leini
 
 HBase RDD can be added as a dependency in sbt with:
 
-    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.5.0"
+    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.5.1"
 
 Currently, the project depends on the following artifacts:
 
