@@ -71,11 +71,14 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
   private def extractRow[A, B](data: Set[String], result: Result, read: Cell => B) =
     result.listCells groupBy { cell =>
       new String(CellUtil.cloneFamily(cell))
-    } filterKeys data.contains mapValues { cells =>
-      cells map { cell =>
-        val column = new String(CellUtil.cloneQualifier(cell))
-        column -> read(cell)
-      } toMap
+    } filterKeys data.contains map {
+      // We cannot use mapValues here, because it returns a MapLike, which is not serializable,
+      // instead we need a (serializable) Map (see https://issues.scala-lang.org/browse/SI-7005)
+      case (k, cells) =>
+        (k, cells map { cell =>
+          val column = new String(CellUtil.cloneQualifier(cell))
+          column -> read(cell)
+        } toMap)
     }
 
   private def read[A](cell: Cell)(implicit reader: Reads[A]) = {
