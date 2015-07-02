@@ -26,10 +26,10 @@ resolvers ++= Seq(
 )
 
 libraryDependencies ++= Seq(
-  "org.apache.spark" %% "spark-core" % "1.2.0" % "provided",
-  "org.apache.hbase" % "hbase-common" % "0.98.6-cdh5.3.1" % "provided",
-  "org.apache.hbase" % "hbase-client" % "0.98.6-cdh5.3.1" % "provided",
-  "org.apache.hbase" % "hbase-server" % "0.98.6-cdh5.3.1" % "provided",
+  "org.apache.spark" %% "spark-core" % "1.3.1" % "provided",
+  "org.apache.hbase" % "hbase-common" % "1.0.1.1" % "provided",
+  "org.apache.hbase" % "hbase-client" % "1.0.1.1" % "provided",
+  "org.apache.hbase" % "hbase-server" % "1.0.1.1" % "provided",
   "org.json4s" %% "json4s-jackson" % "3.2.11" % "provided"
 )
 
