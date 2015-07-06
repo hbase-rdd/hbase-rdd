@@ -15,21 +15,20 @@
 
 package unicredit.spark.hbase
 
-import java.util.{ TreeSet, UUID }
+import java.util.{TreeSet, UUID}
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.permission.FsPermission
-import org.apache.hadoop.fs.{ FileSystem, Path }
-import org.apache.hadoop.hbase.client.HTable
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.hbase.{KeyValue, TableName}
+import org.apache.hadoop.hbase.client.{HTable, ConnectionFactory}
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.mapreduce.{ HFileOutputFormat2, LoadIncrementalHFiles }
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.KeyValue
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner
-import org.apache.spark.SparkContext.rddToPairRDDFunctions
-import org.apache.spark.rdd.RDD
 import org.apache.spark.Partitioner
+import org.apache.spark.rdd.RDD
 
 import scala.collection.JavaConversions.asScalaSet
 
@@ -72,17 +71,21 @@ sealed abstract class HFileRDD extends Serializable {
   }
 
   protected def toHBaseBulk[A](rdd: RDD[(String, Map[String, A])],
-    tableName: String, cFamily: String, numFilesPerRegion: Int,
+    tableNameStr: String, cFamily: String, numFilesPerRegion: Int,
     kv: KeyValueWrapper[A])(implicit config: HBaseConfig) = {
     def bytes(s: String) = Bytes.toBytes(s)
 
     val conf = config.get
-    val hTable = new HTable(conf, tableName)
+    val tableName = TableName.valueOf(tableNameStr)
+    val connection = ConnectionFactory.createConnection(conf)
+    val table = connection.getTable(tableName)
+    val regionLocator = connection.getRegionLocator(tableName)
+    val admin = connection.getAdmin()
     val cf = Bytes.toBytes(cFamily)
 
     val job = Job.getInstance(conf, this.getClass.getName.split('$')(0))
 
-    HFileOutputFormat2.configureIncrementalLoad(job, hTable)
+    HFileOutputFormat2.configureIncrementalLoad(job, table, regionLocator)
 
     // prepare path for HFiles output
     val fs = FileSystem.get(conf)
@@ -91,7 +94,7 @@ sealed abstract class HFileRDD extends Serializable {
 
     try {
       rdd
-        .partitionBy(new HFilePartitioner(conf, hTable.getStartKeys, numFilesPerRegion))
+        .partitionBy(new HFilePartitioner(conf, regionLocator.getStartKeys, numFilesPerRegion))
         .mapPartitions({ p =>
           p.toSeq.sortWith {
             (r1, r2) =>
@@ -131,8 +134,10 @@ sealed abstract class HFileRDD extends Serializable {
       setRecursivePermission(hFilePath)
 
       val lih = new LoadIncrementalHFiles(conf)
-      lih.doBulkLoad(hFilePath, hTable)
+      lih.doBulkLoad(hFilePath, admin, table, regionLocator)
     } finally {
+      connection.close()
+
       fs.deleteOnExit(hFilePath)
 
       // clean HFileOutputFormat2 stuff

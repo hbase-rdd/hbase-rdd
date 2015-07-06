@@ -16,8 +16,7 @@
 package unicredit.spark.hbase
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.hbase.client.{ Put, HBaseAdmin }
-import org.apache.hadoop.hbase.{ HTableDescriptor, HColumnDescriptor, TableName }
+import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 
@@ -28,7 +27,6 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.SparkContext._
 
 /**
  * Adds implicit methods to `RDD[(String, Map[String, A])]`,
@@ -40,22 +38,22 @@ trait HBaseWriteSupport {
   type PutAdder[A] = (Put, Array[Byte], Array[Byte], A) => Unit
 
   implicit def toHBaseRDDSimple[A](rdd: RDD[(String, Map[String, A])])(implicit writer: Writes[A]): HBaseRDDSimple[A] =
-    new HBaseRDDSimple(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: A) => put.add(cf, q, writer.write(v))})
+    new HBaseRDDSimple(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: A) => put.addColumn(cf, q, writer.write(v))})
 
   implicit def toHBaseRDDSimpleT[A](rdd: RDD[(String, Map[String, (A, Long)])])(implicit writer: Writes[A]): HBaseRDDSimple[(A, Long)] =
-    new HBaseRDDSimple(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: (A, Long)) => put.add(cf, q, v._2, writer.write(v._1))})
+    new HBaseRDDSimple(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: (A, Long)) => put.addColumn(cf, q, v._2, writer.write(v._1))})
 
   implicit def toHBaseRDDFixed[A](rdd: RDD[(String, Seq[A])])(implicit writer: Writes[A]): HBaseRDDFixed[A] =
-    new HBaseRDDFixed(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: A) => put.add(cf, q, writer.write(v))})
+    new HBaseRDDFixed(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: A) => put.addColumn(cf, q, writer.write(v))})
 
   implicit def toHBaseRDDFixedT[A](rdd: RDD[(String, Seq[(A, Long)])])(implicit writer: Writes[A]): HBaseRDDFixed[(A, Long)] =
-    new HBaseRDDFixed(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: (A, Long)) => put.add(cf, q, v._2, writer.write(v._1))})
+    new HBaseRDDFixed(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: (A, Long)) => put.addColumn(cf, q, v._2, writer.write(v._1))})
 
   implicit def toHBaseRDD[A](rdd: RDD[(String, Map[String, Map[String, A]])])(implicit writer: Writes[A]): HBaseRDD[A] =
-    new HBaseRDD(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: A) => put.add(cf, q, writer.write(v))})
+    new HBaseRDD(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: A) => put.addColumn(cf, q, writer.write(v))})
 
   implicit def toHBaseRDDT[A](rdd: RDD[(String, Map[String, Map[String, (A, Long)]])])(implicit writer: Writes[A]): HBaseRDD[(A, Long)] =
-    new HBaseRDD(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: (A, Long)) => put.add(cf, q, v._2, writer.write(v._1))})
+    new HBaseRDD(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: (A, Long)) => put.addColumn(cf, q, v._2, writer.write(v._1))})
 
   implicit val byteArrayWriter = new Writes[Array[Byte]] {
     def write(data: Array[Byte]) = data
@@ -87,16 +85,6 @@ sealed abstract class HBaseWriteHelpers[A] {
     if (empty) None else Some(new ImmutableBytesWritable, p)
   }
 
-  protected def createTable(table: String, families: List[String], admin: HBaseAdmin) = {
-    if (!admin.isTableAvailable(table)) {
-      val tableName = TableName.valueOf(table)
-      val tableDescriptor = new HTableDescriptor(tableName)
-
-      families foreach { f => tableDescriptor.addFamily(new HColumnDescriptor(f)) }
-      admin.createTable(tableDescriptor)
-    }
-  }
-
   protected def createJob(table: String, conf: Configuration) = {
     conf.set(TableOutputFormat.OUTPUT_TABLE, table)
     val job = Job.getInstance(conf, this.getClass.getName.split('$')(0))
@@ -119,7 +107,7 @@ final class HBaseRDDSimple[A](val rdd: RDD[(String, Map[String, A])], val put: P
   def toHBase(table: String, family: String)(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
-    createTable(table, List(family), new HBaseAdmin(conf))
+    createTable(table, List(family))
 
     rdd.flatMap({ case (k, v) => convert(k, Map(family -> v), put) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
   }
@@ -139,7 +127,7 @@ final class HBaseRDDFixed[A](val rdd: RDD[(String, Seq[A])], val put: PutAdder[A
   def toHBase(table: String, family: String, headers: Seq[String])(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
-    createTable(table, List(family), new HBaseAdmin(conf))
+    createTable(table, List(family))
 
     val sc = rdd.context
     val bheaders = sc.broadcast(headers)
