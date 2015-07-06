@@ -27,10 +27,10 @@ HBase RDD can be added as a dependency in sbt with:
 
 Currently, the project depends on the following artifacts:
 
-    "org.apache.spark" %% "spark-core" % "1.2.0" % "provided",
-    "org.apache.hbase" % "hbase-common" % "0.98.6-cdh5.3.1" % "provided",
-    "org.apache.hbase" % "hbase-client" % "0.98.6-cdh5.3.1" % "provided",
-    "org.apache.hbase" % "hbase-server" % "0.98.6-cdh5.3.1" % "provided",
+    "org.apache.spark" %% "spark-core" % "1.3.1" % "provided",
+    "org.apache.hbase" % "hbase-common" % "1.1.1" % "provided",
+    "org.apache.hbase" % "hbase-client" % "1.1.1" % "provided",
+    "org.apache.hbase" % "hbase-server" % "1.1.1" % "provided",
     "org.json4s" %% "json4s-jackson" % "3.2.11" % "provided"
 
 All dependencies appear with `provided` scope, so you will have to either have these dependencies in your project, or have the corresponding artifacts available locally in your cluster. Most of them are available in the Cloudera repositories, which you can add with the following line:
