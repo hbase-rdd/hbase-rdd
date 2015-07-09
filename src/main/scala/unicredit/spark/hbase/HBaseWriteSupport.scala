@@ -107,7 +107,7 @@ final class HBaseRDDSimple[A](val rdd: RDD[(String, Map[String, A])], val put: P
   def toHBase(table: String, family: String)(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
-    createTable(table, List(family))
+    createTable(table, family)
 
     rdd.flatMap({ case (k, v) => convert(k, Map(family -> v), put) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
   }
@@ -127,7 +127,7 @@ final class HBaseRDDFixed[A](val rdd: RDD[(String, Seq[A])], val put: PutAdder[A
   def toHBase(table: String, family: String, headers: Seq[String])(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
-    createTable(table, List(family))
+    createTable(table, family)
 
     val sc = rdd.context
     val bheaders = sc.broadcast(headers)

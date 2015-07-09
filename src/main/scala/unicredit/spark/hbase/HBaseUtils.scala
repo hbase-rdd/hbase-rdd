@@ -65,17 +65,17 @@ trait HBaseUtils {
    * Creates a table (if it doesn't exist already) with one or more column families
    * and made of one or more regions
    *
-   * @param table name of the table
+   * @param tableName name of the table
    * @param families list of column families
    * @param splitKeys ordered list of keys that defines region splits
    */
-  def createTable(table: String, families: Seq[String], splitKeys: Seq[String])(implicit config: HBaseConfig): Unit = {
+  def createTable(tableName: String, families: Seq[String], splitKeys: Seq[String])(implicit config: HBaseConfig): Unit = {
     val connection = ConnectionFactory.createConnection(config.get)
     try {
       val admin = connection.getAdmin
-      val tableName = TableName.valueOf(table)
-      if (!admin.isTableAvailable(tableName)) {
-        val tableDescriptor = new HTableDescriptor(tableName)
+      val table = TableName.valueOf(tableName)
+      if (!admin.isTableAvailable(table)) {
+        val tableDescriptor = new HTableDescriptor(table)
         families foreach { f => tableDescriptor.addFamily(new HColumnDescriptor(f)) }
         if (splitKeys.isEmpty)
           admin.createTable(tableDescriptor)
@@ -90,21 +90,21 @@ trait HBaseUtils {
   /**
    * Creates a table (if it doesn't exist already) with one or more column families
    *
-   * @param table name of the table
-   * @param families list of column families
+   * @param tableName name of the table
+   * @param families list of one or more column families
    */
-  def createTable(table: String, families: Seq[String])(implicit config: HBaseConfig): Unit =
-    createTable(table, families, Seq.empty)
+  def createTable(tableName: String, families: String*)(implicit config: HBaseConfig): Unit =
+    createTable(tableName, families, Seq.empty)
 
   /**
    * Creates a table (if it doesn't exist already) with a column family and made of one or more regions
    *
-   * @param table name of the table
+   * @param tableName name of the table
    * @param family name of the column family
    * @param splitKeys ordered list of keys that defines region splits
    */
-  def createTable(table: String, family: String, splitKeys: Seq[String])(implicit config: HBaseConfig): Unit =
-    createTable(table, Seq(family), splitKeys)
+  def createTable(tableName: String, family: String, splitKeys: Seq[String])(implicit config: HBaseConfig): Unit =
+    createTable(tableName, Seq(family), splitKeys)
 
   /**
    * Given a RDD of keys and the number of requested table's regions, returns an array
