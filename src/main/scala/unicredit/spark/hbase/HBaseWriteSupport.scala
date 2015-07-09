@@ -87,16 +87,6 @@ sealed abstract class HBaseWriteHelpers[A] {
     if (empty) None else Some(new ImmutableBytesWritable, p)
   }
 
-  protected def createTable(table: String, families: List[String], admin: HBaseAdmin) = {
-    if (!admin.isTableAvailable(table)) {
-      val tableName = TableName.valueOf(table)
-      val tableDescriptor = new HTableDescriptor(tableName)
-
-      families foreach { f => tableDescriptor.addFamily(new HColumnDescriptor(f)) }
-      admin.createTable(tableDescriptor)
-    }
-  }
-
   protected def createJob(table: String, conf: Configuration) = {
     conf.set(TableOutputFormat.OUTPUT_TABLE, table)
     val job = Job.getInstance(conf, this.getClass.getName.split('$')(0))
@@ -119,7 +109,7 @@ final class HBaseRDDSimple[A](val rdd: RDD[(String, Map[String, A])], val put: P
   def toHBase(table: String, family: String)(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
-    createTable(table, List(family), new HBaseAdmin(conf))
+    createTable(table, family)
 
     rdd.flatMap({ case (k, v) => convert(k, Map(family -> v), put) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
   }
@@ -139,7 +129,7 @@ final class HBaseRDDFixed[A](val rdd: RDD[(String, Seq[A])], val put: PutAdder[A
   def toHBase(table: String, family: String, headers: Seq[String])(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
-    createTable(table, List(family), new HBaseAdmin(conf))
+    createTable(table, family)
 
     val sc = rdd.context
     val bheaders = sc.broadcast(headers)
