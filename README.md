@@ -241,7 +241,7 @@ You can have a look at `ImportTsvToHFiles.scala` in [hbase-rdd-examples project]
 #### Set the Number of HFiles per Region per Family
 
 For best performance, HBase should use 1 HFile per region per family. On the other hand, the more HFiles you use, the more partitions you have in your Spark job, hence Spark tasks run faster and consume less memory heap.
-You can fine tune this opposite requirement by passing an additional optional parameter to `loadtohbase()` method, `numFilesPerRegion=<N>` where N (default is 1) is a number between 1 and `hbase.mapreduce.bulkload.max.hfiles.perRegion.perFamily` parameter (default is 32), e.g.
+You can fine tune this opposite requirement by passing an additional optional parameter to `toHBaseBulk()` method, `numFilesPerRegion=<N>` where N (default is 1) is a number between 1 and `hbase.mapreduce.bulkload.max.hfiles.perRegion.perFamily` parameter (default is 32), e.g.
 
     rdd.toHBaseBulk(table, cf, numFilesPerRegion=32)
 
