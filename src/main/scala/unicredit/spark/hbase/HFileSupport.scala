@@ -21,7 +21,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.hbase.{KeyValue, TableName}
-import org.apache.hadoop.hbase.client.{HTable, ConnectionFactory}
+import org.apache.hadoop.hbase.client.ConnectionFactory
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.mapreduce.{ HFileOutputFormat2, LoadIncrementalHFiles }
 import org.apache.hadoop.hbase.util.Bytes
@@ -80,7 +80,7 @@ sealed abstract class HFileRDD extends Serializable {
     val connection = ConnectionFactory.createConnection(conf)
     val table = connection.getTable(tableName)
     val regionLocator = connection.getRegionLocator(tableName)
-    val admin = connection.getAdmin()
+    val admin = connection.getAdmin
     val cf = Bytes.toBytes(cFamily)
 
     val job = Job.getInstance(conf, this.getClass.getName.split('$')(0))
