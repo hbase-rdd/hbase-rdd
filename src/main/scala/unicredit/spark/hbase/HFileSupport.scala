@@ -27,7 +27,6 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.KeyValue
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner
-import org.apache.spark.SparkContext.rddToPairRDDFunctions
 import org.apache.spark.rdd.RDD
 import org.apache.spark.Partitioner
 import org.apache.spark.SparkContext._
