@@ -30,6 +30,7 @@ import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner
 import org.apache.spark.SparkContext.rddToPairRDDFunctions
 import org.apache.spark.rdd.RDD
 import org.apache.spark.Partitioner
+import org.apache.spark.SparkContext._
 
 import scala.collection.JavaConversions.asScalaSet
 
@@ -90,16 +91,16 @@ sealed abstract class HFileRDD extends Serializable {
     fs.makeQualified(hFilePath)
 
     try {
+      implicit val bytesOrdering = new Ordering[String] {
+        override def compare(a: String, b: String) = {
+          val ord = Bytes.compareTo(bytes(a), bytes(b))
+          if (ord == 0) throw KeyDuplicatedException(a)
+          ord
+        }
+      }
+
       rdd
-        .partitionBy(new HFilePartitioner(conf, hTable.getStartKeys, numFilesPerRegion))
-        .mapPartitions({ p =>
-          p.toSeq.sortWith {
-            (r1, r2) =>
-              val ord = Bytes.compareTo(bytes(r1._1), bytes(r2._1))
-              if (ord == 0) throw KeyDuplicatedException(r1._1)
-              ord < 0
-          }.toIterator
-        }, true)
+        .repartitionAndSortWithinPartitions(new HFilePartitioner(conf, hTable.getStartKeys, numFilesPerRegion))
         .flatMap {
           case (key, columns) =>
             val hKey = new ImmutableBytesWritable()
