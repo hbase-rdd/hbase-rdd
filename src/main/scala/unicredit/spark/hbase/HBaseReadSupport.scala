@@ -45,11 +45,11 @@ trait HBaseReadSupport {
   }
 
   implicit val stringReader = new Reads[String] {
-    def read(data: Array[Byte]) = new String(data)
+    def read(data: Array[Byte]) = new String(data, "UTF-8")
   }
 
   implicit val jsonReader = new Reads[JValue] {
-    def read(data: Array[Byte]) = parse(new String(data))
+    def read(data: Array[Byte]) = parse(new String(data, "UTF-8"))
   }
 }
 

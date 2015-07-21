@@ -62,11 +62,11 @@ trait HBaseWriteSupport {
   }
 
   implicit val stringWriter = new Writes[String] {
-    def write(data: String) = data.getBytes
+    def write(data: String) = data.getBytes("UTF-8")
   }
 
   implicit val jsonWriter = new Writes[JValue] {
-    def write(data: JValue) = compact(data).getBytes
+    def write(data: JValue) = compact(data).getBytes("UTF-8")
   }
 }
 
