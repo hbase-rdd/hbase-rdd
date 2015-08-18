@@ -8,10 +8,7 @@ import org.scalatest.{Suite, SuiteMixin, BeforeAndAfterAll}
 
 trait MiniCluster extends SuiteMixin with BeforeAndAfterAll { this: Suite =>
 
-  LogManager.getRootLogger().setLevel(Level.OFF);
-
-  implicit def stringToBytes(s: String): Array[Byte] = Bytes.toBytes(s)
-  implicit def arrayToBytes(a: Array[String]): Array[Array[Byte]] = a map (s => Bytes.toBytes(s))
+  LogManager.getRootLogger().setLevel(Level.OFF)
 
   private val master = "local[4]"
   private val appName = "hbase-rdd_spark"

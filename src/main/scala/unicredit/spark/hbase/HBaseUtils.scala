@@ -12,6 +12,10 @@ import org.apache.spark.rdd.RDD
  * Utilities for dealing with HBase tables
  */
 trait HBaseUtils {
+
+  implicit def stringToBytes(s: String): Array[Byte] = Bytes.toBytes(s)
+  implicit def arrayToBytes(a: Array[String]): Array[Array[Byte]] = a map Bytes.toBytes
+
   /**
    * Checks if table exists, and requires that it contains the desired column family
    *
