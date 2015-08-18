@@ -16,8 +16,7 @@
 package unicredit.spark.hbase
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.hbase.client.{ Put, HBaseAdmin }
-import org.apache.hadoop.hbase.{ HTableDescriptor, HColumnDescriptor, TableName }
+import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 
@@ -62,26 +61,24 @@ trait HBaseWriteSupport {
   }
 
   implicit val stringWriter = new Writes[String] {
-    def write(data: String) = data.getBytes("UTF-8")
+    def write(data: String) = Bytes.toBytes(data)
   }
 
   implicit val jsonWriter = new Writes[JValue] {
-    def write(data: JValue) = compact(data).getBytes("UTF-8")
+    def write(data: JValue) = Bytes.toBytes(compact(data))
   }
 }
 
 sealed abstract class HBaseWriteHelpers[A] {
   protected def convert(id: String, values: Map[String, Map[String, A]], put: PutAdder[A]) = {
-    def bytes(s: String) = Bytes.toBytes(s)
-
-    val p = new Put(bytes(id))
+    val p = new Put(id)
     var empty = true
     for {
       (family, content) <- values
       (key, value) <- content
     } {
       empty = false
-      put(p, bytes(family), bytes(key), value)
+      put(p, family, key, value)
     }
 
     if (empty) None else Some(new ImmutableBytesWritable, p)

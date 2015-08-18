@@ -45,11 +45,11 @@ trait HBaseReadSupport {
   }
 
   implicit val stringReader = new Reads[String] {
-    def read(data: Array[Byte]) = new String(data, "UTF-8")
+    def read(data: Array[Byte]) = Bytes.toString(data)
   }
 
   implicit val jsonReader = new Reads[JValue] {
-    def read(data: Array[Byte]) = parse(new String(data, "UTF-8"))
+    def read(data: Array[Byte]) = parse(Bytes.toString(data))
   }
 }
 
@@ -59,7 +59,7 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
       case (cf, columns) =>
         val content = columns flatMap { column =>
           Option {
-            result.getColumnLatestCell(cf.getBytes, column.getBytes)
+            result.getColumnLatestCell(cf, column)
           } map { cell =>
             column -> read(cell)
           }

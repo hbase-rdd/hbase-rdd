@@ -74,12 +74,10 @@ sealed abstract class HFileRDD extends Serializable {
   protected def toHBaseBulk[A](rdd: RDD[(String, Map[String, A])],
     tableName: String, cFamily: String, numFilesPerRegion: Int,
     kv: KeyValueWrapper[A])(implicit config: HBaseConfig) = {
-    def bytes(s: String) = Bytes.toBytes(s)
-
     val conf = config.get
     val hTable = new HTable(conf, tableName)
     val cf = Bytes.toBytes(cFamily)
-
+    
     val job = Job.getInstance(conf, this.getClass.getName.split('$')(0))
 
     HFileOutputFormat2.configureIncrementalLoad(job, hTable)
@@ -92,7 +90,7 @@ sealed abstract class HFileRDD extends Serializable {
     try {
       implicit val bytesOrdering = new Ordering[String] {
         override def compare(a: String, b: String) = {
-          val ord = Bytes.compareTo(bytes(a), bytes(b))
+          val ord = Bytes.compareTo(a, b)
           if (ord == 0) throw KeyDuplicatedException(a)
           ord
         }
@@ -103,9 +101,9 @@ sealed abstract class HFileRDD extends Serializable {
         .flatMap {
           case (key, columns) =>
             val hKey = new ImmutableBytesWritable()
-            hKey.set(bytes(key))
+            hKey.set(key)
             val kvs = new TreeSet[KeyValue](KeyValue.COMPARATOR)
-            for ((q, value) <- columns) kvs.add(kv(hKey.get(), cf, Bytes.toBytes(q), value))
+            for ((q, value) <- columns) kvs.add(kv(hKey.get(), cf, q, value))
             kvs.toSeq map (kv => (hKey, kv))
         }
         .saveAsNewAPIHadoopFile(hFilePath.toString, classOf[ImmutableBytesWritable], classOf[KeyValue], classOf[HFileOutputFormat2], job.getConfiguration)
