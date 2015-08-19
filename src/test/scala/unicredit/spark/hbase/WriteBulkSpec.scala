@@ -4,7 +4,7 @@ import org.apache.hadoop.fs.{Path, FileSystem}
 import org.apache.hadoop.hbase.CellUtil
 import org.apache.hadoop.hbase.client.{Get, HTable}
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.spark.{SparkException, SparkContext}
+import org.apache.spark.SparkContext
 import org.scalatest.{BeforeAndAfter, Matchers, FlatSpec}
 
 import scala.util.Random
@@ -19,7 +19,7 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Matchers with BeforeA
     sc.stop()
   }
 
-  def checkWithOneColumnFamily(t: HTable, cf: String, cols: Seq[String], s: Seq[(String, Seq[String])], dataToCheck: (String, Long) => Any) = {
+  def checkWithOneColumnFamily(t: HTable, cf: String, cols: Seq[String], s: Seq[(String, Seq[_])], dataToCheck: (String, Long) => Any) = {
     for ((r, vs) <- s) {
       val get = new Get(r)
       val result = t.get(get)
@@ -71,7 +71,7 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Matchers with BeforeA
     htu.deleteTable(table_bulk)
   }
 
-  it should "write to a Table with 2 HFile per region" in {
+  it should "write to a Table with 2 HFiles per region" in {
     val table_bulk = table_prefix + "_2"
     val htable = htu.createTable(table_bulk, cf, splitKeys)
 
@@ -82,16 +82,47 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Matchers with BeforeA
     htu.deleteTable(table_bulk)
   }
 
-  it should "throw an exception when trying to write two or more rows with the same key" in {
+  it should "write to a Table with timestamps" in {
     val table_bulk = table_prefix + "_3"
     val htable = htu.createTable(table_bulk, cf, splitKeys)
 
-    val source_double_key = source(Random.nextInt(numKeys)) +: source
+    val source_ts = source map { case (k, cols) => (k, cols map ((_, 1L))) }
 
-    intercept[SparkException] {
-      sc.parallelize(source_double_key)
-        .toHBaseBulk(table_bulk, cf, cols)
-    }
+    sc.parallelize(source_ts)
+      .toHBaseBulk(table_bulk, cf, cols)
+
+    checkWithOneColumnFamily(htable, cf, cols, source_ts, (v, ts) => (v, ts))
+    htu.deleteTable(table_bulk)
+  }
+
+  it should "write to a Table with duplicated cells" in {
+    val table_bulk = table_prefix + "_4"
+    val htable = htu.createTable(table_bulk, cf, splitKeys)
+
+    val row = source(Random.nextInt(numKeys))
+    val source_double_row = row +: source
+
+    sc.parallelize(source_double_row)
+      .toHBaseBulk(table_bulk, cf, cols)
+
+    checkWithOneColumnFamily(htable, cf, cols, source_double_row, (v, _) => v)
+    htu.deleteTable(table_bulk)
+  }
+
+  it should "write to a Table with cells that only differ in timestamp" in {
+    val table_bulk = table_prefix + "_5"
+    val htable = htu.createTable(table_bulk, cf, splitKeys)
+
+    val source_ts = source map { case (k, cols) => (k, cols map ((_, 2L))) }
+    val row = source_ts(Random.nextInt(numKeys))
+    val source_double_row = (row._1, row._2 map { case (s, _) => (s, 1L) }) +: source_ts
+
+    sc.parallelize(source_double_row)
+      .toHBaseBulk(table_bulk, cf, cols)
+
+    // do not check timestamps, for simplicity
+    // (actually, we should check all cells, and not only latest cells)
+    checkWithOneColumnFamily(htable, cf, cols, source, (v, _) => v)
     htu.deleteTable(table_bulk)
   }
 
@@ -102,8 +133,8 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Matchers with BeforeA
     val listFiles = fs.listStatus(path)
     listFiles foreach { f =>
       val name = f.getPath.getName
-      name should not startWith (table_prefix)
-      name should not startWith ("partitions_") // temporary files created by HFileOutputFormat2
+      name should not startWith table_prefix
+      name should not startWith "partitions_" // temporary files created by HFileOutputFormat2
     }
   }
 }

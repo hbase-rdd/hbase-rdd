@@ -29,6 +29,8 @@ import org.json4s.jackson.JsonMethods._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext._
 
+import HBaseRDDSupport._
+
 /**
  * Adds implicit methods to `RDD[(String, Map[String, A])]`,
  * `RDD[(String, Seq[A])]` and
@@ -36,25 +38,24 @@ import org.apache.spark.SparkContext._
  * to write to HBase sources.
  */
 trait HBaseWriteSupport {
-  type PutAdder[A] = (Put, Array[Byte], Array[Byte], A) => Unit
 
   implicit def toHBaseRDDSimple[A](rdd: RDD[(String, Map[String, A])])(implicit writer: Writes[A]): HBaseRDDSimple[A] =
-    new HBaseRDDSimple(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: A) => put.add(cf, q, writer.write(v))})
+    new HBaseRDDSimple(rdd, pa[A])
 
   implicit def toHBaseRDDSimpleT[A](rdd: RDD[(String, Map[String, (A, Long)])])(implicit writer: Writes[A]): HBaseRDDSimple[(A, Long)] =
-    new HBaseRDDSimple(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: (A, Long)) => put.add(cf, q, v._2, writer.write(v._1))})
+    new HBaseRDDSimple(rdd, pa[A])
 
   implicit def toHBaseRDDFixed[A](rdd: RDD[(String, Seq[A])])(implicit writer: Writes[A]): HBaseRDDFixed[A] =
-    new HBaseRDDFixed(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: A) => put.add(cf, q, writer.write(v))})
+    new HBaseRDDFixed(rdd, pa[A])
 
   implicit def toHBaseRDDFixedT[A](rdd: RDD[(String, Seq[(A, Long)])])(implicit writer: Writes[A]): HBaseRDDFixed[(A, Long)] =
-    new HBaseRDDFixed(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: (A, Long)) => put.add(cf, q, v._2, writer.write(v._1))})
+    new HBaseRDDFixed(rdd, pa[A])
 
   implicit def toHBaseRDD[A](rdd: RDD[(String, Map[String, Map[String, A]])])(implicit writer: Writes[A]): HBaseRDD[A] =
-    new HBaseRDD(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: A) => put.add(cf, q, writer.write(v))})
+    new HBaseRDD(rdd, pa[A])
 
   implicit def toHBaseRDDT[A](rdd: RDD[(String, Map[String, Map[String, (A, Long)]])])(implicit writer: Writes[A]): HBaseRDD[(A, Long)] =
-    new HBaseRDD(rdd, { (put: Put, cf: Array[Byte], q: Array[Byte], v: (A, Long)) => put.add(cf, q, v._2, writer.write(v._1))})
+    new HBaseRDD(rdd, pa[A])
 
   implicit val byteArrayWriter = new Writes[Array[Byte]] {
     def write(data: Array[Byte]) = data
@@ -67,6 +68,14 @@ trait HBaseWriteSupport {
   implicit val jsonWriter = new Writes[JValue] {
     def write(data: JValue) = Bytes.toBytes(compact(data))
   }
+}
+
+private[hbase] object HBaseRDDSupport {
+  type PutAdder[A] = (Put, Array[Byte], Array[Byte], A) => Put
+
+  // PutAdder
+  def pa[A](put: Put, cf: Array[Byte], q: Array[Byte], v: A)(implicit writer: Writes[A]) = put.add(cf, q, writer.write(v))
+  def pa[A](put: Put, cf: Array[Byte], q: Array[Byte], v: (A, Long))(implicit writer: Writes[A]) = put.add(cf, q, v._2, writer.write(v._1))
 }
 
 sealed abstract class HBaseWriteHelpers[A] {
