@@ -1,15 +1,12 @@
 package unicredit.spark.hbase
 
 import org.apache.hadoop.fs.{Path, FileSystem}
-import org.apache.hadoop.hbase.CellUtil
-import org.apache.hadoop.hbase.client.{Get, HTable}
-import org.apache.hadoop.hbase.util.Bytes
 import org.apache.spark.SparkContext
 import org.scalatest.{BeforeAndAfter, Matchers, FlatSpec}
 
 import scala.util.Random
 
-class WriteBulkSpec extends FlatSpec with MiniCluster with Matchers with BeforeAndAfter {
+class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matchers with BeforeAndAfter {
 
   before {
     sc = new SparkContext(sparkConf)
@@ -17,24 +14,6 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Matchers with BeforeA
 
   after {
     sc.stop()
-  }
-
-  def checkWithOneColumnFamily(t: HTable, cf: String, cols: Seq[String], s: Seq[(String, Seq[_])], dataToCheck: (String, Long) => Any) = {
-    for ((r, vs) <- s) {
-      val get = new Get(r)
-      val result = t.get(get)
-
-      Bytes.toString(result.getRow()) should === (r)
-
-      val data = cols zip vs
-
-      for {
-        (col, v) <- data
-        cell = result.getColumnLatestCell(cf, col)
-        value = Bytes.toString(CellUtil.cloneValue(cell))
-        ts = cell.getTimestamp
-      } dataToCheck(value, ts) should === (v)
-    }
   }
 
   def nextString = (1 to 10) map (_ => Random.nextPrintableChar) mkString
@@ -45,11 +24,17 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Matchers with BeforeA
 
   val keys = Random.shuffle(0 to numKeys-1) map (i => f"row$i%03d")
   val cols = ((1 to numCols) map (i => f"col$i%02d")).to[Seq] // must be a collection.Seq and not a collection.immutable.Seq
-  val cf = "cf"
+  val family = "cf"
+  val families = Seq("cf1", "cf2")
 
   val source = keys map { k => (k, cols map (_ => nextString)) }
+  val source_multi_cf = source map { case (k, v) =>
+    val cv = (cols zip v).toMap
+    (k, families map { _ -> cv } toMap)
+  }
 
   val table_prefix = "test_bulk"
+  var table_counter = 0
 
   var splitKeys: Array[String] = _
 
@@ -61,68 +46,85 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Matchers with BeforeA
   }
 
   "A HFileRDD" should "write to a Table with 1 HFile per region" in {
-    val table_bulk = table_prefix + "_1"
-    val htable = htu.createTable(table_bulk, cf, splitKeys)
+    table_counter += 1
+    val table_bulk = table_prefix + s"_$table_counter"
+    val htable = htu.createTable(table_bulk, family, splitKeys)
 
     sc.parallelize(source)
-      .toHBaseBulk(table_bulk, cf, cols)
+      .toHBaseBulk(table_bulk, family, cols)
 
-    checkWithOneColumnFamily(htable, cf, cols, source, (v, _) => v)
+    checkWithOneColumnFamily(htable, family, cols, source, (v, _) => v)
     htu.deleteTable(table_bulk)
   }
 
   it should "write to a Table with 2 HFiles per region" in {
-    val table_bulk = table_prefix + "_2"
-    val htable = htu.createTable(table_bulk, cf, splitKeys)
+    table_counter += 1
+    val table_bulk = table_prefix + s"_$table_counter"
+    val htable = htu.createTable(table_bulk, family, splitKeys)
 
     sc.parallelize(source)
-      .toHBaseBulk(table_bulk, cf, cols, 2)
+      .toHBaseBulk(table_bulk, family, cols, 2)
 
-    checkWithOneColumnFamily(htable, cf, cols, source, (v, _) => v)
+    checkWithOneColumnFamily(htable, family, cols, source, (v, _) => v)
     htu.deleteTable(table_bulk)
   }
 
   it should "write to a Table with timestamps" in {
-    val table_bulk = table_prefix + "_3"
-    val htable = htu.createTable(table_bulk, cf, splitKeys)
+    table_counter += 1
+    val table_bulk = table_prefix + s"_$table_counter"
+    val htable = htu.createTable(table_bulk, family, splitKeys)
 
     val source_ts = source map { case (k, cols) => (k, cols map ((_, 1L))) }
 
     sc.parallelize(source_ts)
-      .toHBaseBulk(table_bulk, cf, cols)
+      .toHBaseBulk(table_bulk, family, cols)
 
-    checkWithOneColumnFamily(htable, cf, cols, source_ts, (v, ts) => (v, ts))
+    checkWithOneColumnFamily(htable, family, cols, source_ts, (v, ts) => (v, ts))
     htu.deleteTable(table_bulk)
   }
 
   it should "write to a Table with duplicated cells" in {
-    val table_bulk = table_prefix + "_4"
-    val htable = htu.createTable(table_bulk, cf, splitKeys)
+    table_counter += 1
+    val table_bulk = table_prefix + s"_$table_counter"
+    val htable = htu.createTable(table_bulk, family, splitKeys)
 
     val row = source(Random.nextInt(numKeys))
     val source_double_row = row +: source
 
     sc.parallelize(source_double_row)
-      .toHBaseBulk(table_bulk, cf, cols)
+      .toHBaseBulk(table_bulk, family, cols)
 
-    checkWithOneColumnFamily(htable, cf, cols, source_double_row, (v, _) => v)
+    checkWithOneColumnFamily(htable, family, cols, source_double_row, (v, _) => v)
     htu.deleteTable(table_bulk)
   }
 
   it should "write to a Table with cells that only differ in timestamp" in {
-    val table_bulk = table_prefix + "_5"
-    val htable = htu.createTable(table_bulk, cf, splitKeys)
+    table_counter += 1
+    val table_bulk = table_prefix + s"_$table_counter"
+    val htable = htu.createTable(table_bulk, family, splitKeys)
 
     val source_ts = source map { case (k, cols) => (k, cols map ((_, 2L))) }
     val row = source_ts(Random.nextInt(numKeys))
     val source_double_row = (row._1, row._2 map { case (s, _) => (s, 1L) }) +: source_ts
 
     sc.parallelize(source_double_row)
-      .toHBaseBulk(table_bulk, cf, cols)
+      .toHBaseBulk(table_bulk, family, cols)
 
     // do not check timestamps, for simplicity
     // (actually, we should check all cells, and not only latest cells)
-    checkWithOneColumnFamily(htable, cf, cols, source, (v, _) => v)
+    checkWithOneColumnFamily(htable, family, cols, source, (v, _) => v)
+    htu.deleteTable(table_bulk)
+  }
+
+  it should "write to a Table with 2 column families" in {
+    table_counter += 1
+    val table_bulk = table_prefix + s"_$table_counter"
+    val htable = htu.createTable(table_bulk, families.toArray, splitKeys)
+
+    sc.parallelize(source_multi_cf)
+      .toHBaseBulk(table_bulk)
+
+    checkWithAllColumnFamilies(htable, source_multi_cf, (v, _) => v)
     htu.deleteTable(table_bulk)
   }
 

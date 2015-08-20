@@ -1,13 +1,10 @@
 package unicredit.spark.hbase
 
-import org.apache.hadoop.hbase.CellUtil
-import org.apache.hadoop.hbase.client.{HTable, Get}
 import org.apache.hadoop.hbase.filter.PrefixFilter
-import org.apache.hadoop.hbase.util.Bytes
 import org.apache.spark.SparkContext
 import org.scalatest.{FlatSpec, BeforeAndAfter, Matchers}
 
-class ReadWriteSpec extends FlatSpec with MiniCluster with Matchers with BeforeAndAfter {
+class ReadWriteSpec extends FlatSpec with MiniCluster with Checkers with Matchers with BeforeAndAfter {
 
   before {
     sc = new SparkContext(sparkConf)
@@ -50,39 +47,6 @@ class ReadWriteSpec extends FlatSpec with MiniCluster with Matchers with BeforeA
 
   // a filter for reading one row
   val filter = new PrefixFilter(a_key)
-
-  def checkWithAllColumnFamilies(t: HTable, s: Seq[(String, Map[String, Map[String, _]])], dataToCheck: (String, Long) => Any) = {
-    for ((r, m) <- s) {
-      val get = new Get(r)
-      val result = t.get(get)
-
-      Bytes.toString(result.getRow()) should === (r)
-
-      for {
-        cf <- m.keys
-        col <- m(cf).keys
-        cell = result.getColumnLatestCell(cf, col)
-        value = Bytes.toString(CellUtil.cloneValue(cell))
-        ts = cell.getTimestamp
-      } dataToCheck(value, ts) should === (m(cf)(col))
-    }
-  }
-
-  def checkWithOneColumnFamily(t: HTable, cf: String, s: Seq[(String, Map[String, _])], dataToCheck: (String, Long) => Any) = {
-    for ((r, m) <- s) {
-      val get = new Get(r)
-      val result = t.get(get)
-
-      Bytes.toString(result.getRow()) should === (r)
-
-      for {
-        col <- m.keys
-        cell = result.getColumnLatestCell(cf, col)
-        value = Bytes.toString(CellUtil.cloneValue(cell))
-        ts = cell.getTimestamp
-      } dataToCheck(value, ts) should === (m(col))
-    }
-  }
 
   "A HBaseRDD" should "write to a Table all column families" in {
     val htable = htu.createTable(table_all_cf, families.toArray)

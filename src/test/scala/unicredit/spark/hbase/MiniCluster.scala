@@ -1,7 +1,6 @@
 package unicredit.spark.hbase
 
 import org.apache.hadoop.hbase.HBaseTestingUtility
-import org.apache.hadoop.hbase.util.Bytes
 import org.apache.log4j.{Level, LogManager}
 import org.apache.spark.{SparkContext, SparkConf}
 import org.scalatest.{Suite, SuiteMixin, BeforeAndAfterAll}

@@ -51,6 +51,13 @@ trait HFileSupport {
 
   implicit def toHFileRDDFixedT[A](rdd: RDD[(String, Seq[(A, Long)])])(implicit writer: Writes[A]): HFileRDDFixed[CellKeyT, (A, Long)] =
     new HFileRDDFixed[CellKeyT, (A, Long)](rdd, gck[A], kvw[A])
+
+  implicit def toHFileRDD[A: ClassTag](rdd: RDD[(String, Map[String, Map[String, A]])])(implicit writer: Writes[A]): HFileRDD[CellKey, A] =
+    new HFileRDD[CellKey, A](rdd, gck[A], kvw[A])
+
+  implicit def toHFileRDDT[A](rdd: RDD[(String, Map[String, Map[String, (A, Long)]])])(implicit writer: Writes[A]): HFileRDD[CellKeyT, (A, Long)] =
+    new HFileRDD[CellKeyT, (A, Long)](rdd, gck[A], kvw[A])
+
 }
 
 private[hbase] object HFileRDDSupport {
@@ -106,7 +113,7 @@ private[hbase] object HFileRDDSupport {
   }
 }
 
-sealed abstract class HFileRDD extends Serializable {
+sealed abstract class HFileRDDHelper extends Serializable {
 
   private object HFilePartitioner {
     def apply(conf: Configuration, splits: Array[Array[Byte]], numFilesPerRegion: Int) = {
@@ -203,42 +210,71 @@ sealed abstract class HFileRDD extends Serializable {
   }
 }
 
-final class HFileRDDSimple[C: ClassTag, A: ClassTag](mapRdd: RDD[(String, Map[String, A])], ck: GetCellKey[C, A], kv: KeyValueWrapper[C, A]) extends HFileRDD {
+final class HFileRDDSimple[C: ClassTag, A: ClassTag](mapRdd: RDD[(String, Map[String, A])], ck: GetCellKey[C, A], kv: KeyValueWrapper[C, A]) extends HFileRDDHelper {
   /**
    * Load the underlying RDD to HBase, using HFiles.
+   *
+   * Simplified form, where all values are written to the
+   * same column family.
    *
    * The RDD is assumed to be an instance of `RDD[(String, Map[String, A])]`,
    * where the first value is the rowkey and the second is a map that
    * associates column names to values.
    */
-  def toHBaseBulk(tableName: String, cFamily: String, numFilesPerRegion: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
-    val cFamilyBytes = Bytes.toBytes(cFamily)
+  def toHBaseBulk(tableName: String, family: String, numFilesPerRegion: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
+    val familyBytes = Bytes.toBytes(family)
     val rdd = mapRdd.flatMap {
       case (k, m) =>
         val keyBytes = Bytes.toBytes(k)
-        m map { case (h, v) => (ck((keyBytes, cFamilyBytes, h), v), v) }
+        m map { case (h, v) => (ck((keyBytes, familyBytes, h), v), v) }
     }
     super.toHBaseBulk(rdd, tableName, numFilesPerRegion, kv)
   }
 }
 
-final class HFileRDDFixed[C: ClassTag, A: ClassTag](seqRdd: RDD[(String, Seq[A])], ck: GetCellKey[C, A], kv: KeyValueWrapper[C, A]) extends HFileRDD {
+final class HFileRDDFixed[C: ClassTag, A: ClassTag](seqRdd: RDD[(String, Seq[A])], ck: GetCellKey[C, A], kv: KeyValueWrapper[C, A]) extends HFileRDDHelper {
   /**
    * Load the underlying RDD to HBase, using HFiles.
+   *
+   * Simplified form, where all values are written to the
+   * same column family, and columns are fixed, so that their names can be passed as a sequence.
    *
    * The RDD is assumed to be an instance of `RDD[(String, Seq[A])`,
    * where the first value is the rowkey and the second is a sequence of values to be
    * associated to column names in `headers`.
    */
-  def toHBaseBulk(tableName: String, cFamily: String, headers: Seq[String], numFilesPerRegion: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
+  def toHBaseBulk(tableName: String, family: String, headers: Seq[String], numFilesPerRegion: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
     require(numFilesPerRegion > 0)
     val sc = seqRdd.context
     val headersBytes = sc.broadcast(headers map Bytes.toBytes)
-    val cFamilyBytes = Bytes.toBytes(cFamily)
+    val familyBytes = Bytes.toBytes(family)
     val rdd = seqRdd.flatMap {
       case (k, v) =>
         val keyBytes = Bytes.toBytes(k)
-        (headersBytes.value zip v) map { case (h, v) => (ck((keyBytes, cFamilyBytes, h), v), v) }
+        (headersBytes.value zip v) map { case (h, v) => (ck((keyBytes, familyBytes, h), v), v) }
+    }
+    super.toHBaseBulk(rdd, tableName, numFilesPerRegion, kv)
+  }
+}
+
+final class HFileRDD[C: ClassTag, A: ClassTag](mapRdd: RDD[(String, Map[String, Map[String, A]])], ck: GetCellKey[C, A], kv: KeyValueWrapper[C, A]) extends HFileRDDHelper {
+  /**
+   * Load the underlying RDD to HBase, using HFiles.
+   *
+   * The RDD is assumed to be an instance of `RDD[(String, Map[String, Map[String, A]])]`,
+   * where the first value is the rowkey and the second is a nested map that associates
+   * column families and column names to values.
+   */
+  def toHBaseBulk(tableName: String, numFilesPerRegion: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
+    require(numFilesPerRegion > 0)
+    val rdd = mapRdd.flatMap {
+      case (k, m) =>
+        val keyBytes = Bytes.toBytes(k)
+        for {
+          (f, cv) <- m
+          familyBytes = Bytes.toBytes(f)
+          (c, v) <- cv
+        } yield (ck((keyBytes, familyBytes, c), v), v)
     }
     super.toHBaseBulk(rdd, tableName, numFilesPerRegion, kv)
   }
