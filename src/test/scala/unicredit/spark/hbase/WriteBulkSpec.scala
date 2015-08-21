@@ -27,10 +27,11 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
   val family = "cf"
   val families = Seq("cf1", "cf2")
 
+  // one family, fixed columns
   val source = keys map { k => (k, cols map (_ => nextString)) }
+  // two families, different columns per family
   val source_multi_cf = source map { case (k, v) =>
-    val cv = (cols zip v).toMap
-    (k, families map { _ -> cv } toMap)
+    (k, families map { f => f -> cols.map(c => (s"$f$c", nextString)).toMap } toMap)
   }
 
   val table_prefix = "test_bulk"
