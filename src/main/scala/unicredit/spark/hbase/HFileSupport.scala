@@ -27,6 +27,7 @@ import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.KeyValue
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner
+import org.apache.spark.SparkContext.rddToPairRDDFunctions
 import org.apache.spark.rdd.RDD
 import org.apache.spark.Partitioner
 import org.apache.spark.SparkContext._
@@ -137,6 +138,81 @@ sealed abstract class HFileRDD extends Serializable {
       fs.deleteOnExit(new Path(TotalOrderPartitioner.getPartitionFile(job.getConfiguration)))
     }
   }
+  /*
+   * Overloaded function, which requires that sequence of headers and sequence of columns are in the sorted 
+   * order as required by HBase (i.e. sorted by columns names) . This avoids creation of TreeSet objects to sort the
+   * columns for every row.
+   * It also avoids creation of the Map objects for each row where there is mapping of a column name to
+   * column value for each row.
+   * If you come across GC overhead issues, try using this method instead of the other overloaded method. 
+   * 
+   */
+  protected def toHBaseBulk[A](rdd: RDD[(String, Seq[A])], headers: Seq[Array[Byte]],
+    tableName: String, cFamily: String, numFilesPerRegion: Int,
+    kv: KeyValueWrapper[A])(implicit config: HBaseConfig) = {
+    def bytes(s: String) = Bytes.toBytes(s)
+
+    val conf = config.get
+    val hTable = new HTable(conf, tableName)
+    val cf = Bytes.toBytes(cFamily)
+
+    val job = Job.getInstance(conf, this.getClass.getName.split('$')(0))
+
+    HFileOutputFormat2.configureIncrementalLoad(job, hTable)
+
+    // prepare path for HFiles output
+    val fs = FileSystem.get(conf)
+    val hFilePath = new Path("/tmp", tableName + "_" + UUID.randomUUID())
+    fs.makeQualified(hFilePath)
+
+    try {
+      rdd
+	.repartitionAndSortWithinPartitions(new HFilePartitioner(conf, hTable.getStartKeys, numFilesPerRegion))
+        .flatMap {
+          case (key, columns) =>
+            val hKey = new ImmutableBytesWritable()
+            hKey.set(bytes(key))
+            var i = 0
+            val lst = scala.collection.mutable.MutableList[(ImmutableBytesWritable, org.apache.hadoop.hbase.KeyValue)]()
+            while(i < headers.length && i < columns.length){
+              val tmp = (hKey, kv(hKey.get(), cf, headers(i), columns(i)))
+              //println(hKey+" $ "+cols(i) +" $ "+ columns(i))
+              lst += tmp
+              i = i + 1
+            }
+            lst
+        }
+        .saveAsNewAPIHadoopFile(hFilePath.toString, classOf[ImmutableBytesWritable], classOf[KeyValue], classOf[HFileOutputFormat2], job.getConfiguration)
+
+      // prepare HFiles for incremental load
+      // set folders permissions read/write/exec for all
+      val rwx = new FsPermission("777")
+      def setRecursivePermission(path: Path): Unit = {
+        val listFiles = fs.listStatus(path)
+        listFiles foreach { f =>
+          val p = f.getPath
+          fs.setPermission(p, rwx)
+          if (f.isDirectory && p.getName != "_tmp") {
+            // create a "_tmp" folder that can be used for HFile splitting, so that we can
+            // set permissions correctly. This is a workaround for unsecured HBase. It should not
+            // be necessary for SecureBulkLoadEndpoint (see https://issues.apache.org/jira/browse/HBASE-8495
+            // and http://comments.gmane.org/gmane.comp.java.hadoop.hbase.user/44273)
+            FileSystem.mkdirs(fs, new Path(p, "_tmp"), rwx)
+            setRecursivePermission(p)
+          }
+        }
+      }
+      setRecursivePermission(hFilePath)
+
+      val lih = new LoadIncrementalHFiles(conf)
+      lih.doBulkLoad(hFilePath, hTable)
+    } finally {
+      fs.deleteOnExit(hFilePath)
+
+      // clean HFileOutputFormat2 stuff
+      fs.deleteOnExit(new Path(TotalOrderPartitioner.getPartitionFile(job.getConfiguration)))
+    }
+  }
 }
 
 final class HFileSeqRDD[A](seqRdd: RDD[(String, Seq[A])], kv: KeyValueWrapper[A]) extends HFileRDD {
@@ -149,9 +225,10 @@ final class HFileSeqRDD[A](seqRdd: RDD[(String, Seq[A])], kv: KeyValueWrapper[A]
    */
   def toHBaseBulk(tableName: String, cFamily: String, headers: Seq[String], numFilesPerRegion: Int = 1)(implicit config: HBaseConfig) = {
     val sc = seqRdd.context
-    val headersBytes = sc.broadcast(headers)
-    val mapRdd = seqRdd.mapValues(v => Map(headersBytes.value zip v: _*))
-    super.toHBaseBulk(mapRdd, tableName, cFamily, numFilesPerRegion, kv)
+//    val headersBytes = sc.broadcast(headers)
+//    val mapRdd = seqRdd.mapValues(v => Map(headersBytes.value zip v: _*))
+    val colHeaders = headers.map(x => { Bytes.toBytes(x)})
+    super.toHBaseBulk(seqRdd, colHeaders, tableName, cFamily, numFilesPerRegion, kv)
   }
 }
 
