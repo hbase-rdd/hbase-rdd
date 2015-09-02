@@ -102,7 +102,7 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
   it should "write to a Table with cells that only differ in timestamp" in {
     table_counter += 1
     val table_bulk = table_prefix + s"_$table_counter"
-    val htable = htu.createTable(table_bulk, family, splitKeys)
+    val htable = htu.createTable(table_bulk, family, 2) // create table with 2 versions per cell
 
     val source_ts = source map { case (k, cols) => (k, cols map ((_, 2L))) }
     val row = source_ts(Random.nextInt(numKeys))
@@ -111,9 +111,7 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
     sc.parallelize(source_double_row)
       .toHBaseBulk(table_bulk, family, cols)
 
-    // do not check timestamps, for simplicity
-    // (actually, we should check all cells, and not only latest cells)
-    checkWithOneColumnFamily(htable, family, cols, source, (v, _) => v)
+    checkWithOneColumnFamilyAndTimestamp(htable, family, cols, source_double_row)
     htu.deleteTable(table_bulk)
   }
 
