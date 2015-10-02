@@ -19,13 +19,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase.client.Put
 import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
-
 import org.apache.hadoop.mapreduce.Job
-import org.apache.hadoop.hbase.util.Bytes
-
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
-
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext._
 
@@ -56,18 +50,6 @@ trait HBaseWriteSupport {
 
   implicit def toHBaseRDDT[A](rdd: RDD[(String, Map[String, Map[String, (A, Long)]])])(implicit writer: Writes[A]): HBaseRDD[(A, Long)] =
     new HBaseRDD(rdd, pa[A])
-
-  implicit val byteArrayWriter = new Writes[Array[Byte]] {
-    def write(data: Array[Byte]) = data
-  }
-
-  implicit val stringWriter = new Writes[String] {
-    def write(data: String) = Bytes.toBytes(data)
-  }
-
-  implicit val jsonWriter = new Writes[JValue] {
-    def write(data: JValue) = Bytes.toBytes(compact(data))
-  }
 }
 
 private[hbase] object HBaseRDDSupport {

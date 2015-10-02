@@ -25,13 +25,8 @@ import org.apache.hadoop.hbase.mapreduce.{ TableInputFormat, IdentityTableMapper
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.filter.Filter
-
 import org.apache.hadoop.mapreduce.Job
-
 import org.apache.spark._
-
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
 
 /**
  * Adds implicit methods to SparkContext to read
@@ -39,18 +34,6 @@ import org.json4s.jackson.JsonMethods._
  */
 trait HBaseReadSupport {
   implicit def toHBaseSC(sc: SparkContext): HBaseSC = new HBaseSC(sc)
-
-  implicit val byteArrayReader = new Reads[Array[Byte]] {
-    def read(data: Array[Byte]) = data
-  }
-
-  implicit val stringReader = new Reads[String] {
-    def read(data: Array[Byte]) = Bytes.toString(data)
-  }
-
-  implicit val jsonReader = new Reads[JValue] {
-    def read(data: Array[Byte]) = parse(Bytes.toString(data))
-  }
 }
 
 final class HBaseSC(@transient sc: SparkContext) extends Serializable {

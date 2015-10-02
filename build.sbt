@@ -6,7 +6,7 @@ name := "hbase-rdd"
 
 organization := "eu.unicredit"
 
-version := "0.5.3-bulkwrite"
+version := "0.5.3.1"
 
 scalaVersion := "2.10.4"
 
