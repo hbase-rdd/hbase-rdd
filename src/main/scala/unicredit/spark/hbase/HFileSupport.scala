@@ -113,11 +113,11 @@ private[hbase] object HFileRDDSupport {
 sealed abstract class HFileRDDHelper extends Serializable {
 
   private object HFilePartitioner {
-    def apply(conf: Configuration, splits: Array[Array[Byte]], numFilesPerRegion: Int) = {
-      if (numFilesPerRegion == 1)
+    def apply(conf: Configuration, splits: Array[Array[Byte]], numFilesPerRegionPerFamily: Int) = {
+      if (numFilesPerRegionPerFamily == 1)
         new SingleHFilePartitioner(splits)
       else {
-        val fraction = 1 max numFilesPerRegion min conf.getInt(LoadIncrementalHFiles.MAX_FILES_PER_REGION_PER_FAMILY, 32)
+        val fraction = 1 max numFilesPerRegionPerFamily min conf.getInt(LoadIncrementalHFiles.MAX_FILES_PER_REGION_PER_FAMILY, 32)
         new MultiHFilePartitioner(splits, fraction)
       }
     }
@@ -157,8 +157,8 @@ sealed abstract class HFileRDDHelper extends Serializable {
 
   protected def getHTable(tableName: String)(implicit config: HBaseConfig) = new HTable(config.get, tableName)
 
-  protected def getPartitioner(hTable: HTable, numFilesPerRegion: Int)(implicit config: HBaseConfig) =
-    HFilePartitioner(config.get, hTable.getStartKeys, numFilesPerRegion)
+  protected def getPartitioner(hTable: HTable, numFilesPerRegionPerFamily: Int)(implicit config: HBaseConfig) =
+    HFilePartitioner(config.get, hTable.getStartKeys, numFilesPerRegionPerFamily)
 
   protected def getPartitionedRdd[C: ClassTag, A: ClassTag](rdd: RDD[(C, A)], kv: KeyValueWrapper[C, A], partitioner: HFilePartitioner)(implicit ord: Ordering[C]) = {
     rdd
@@ -223,11 +223,11 @@ final class HFileRDDSimple[C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(S
    * where the first value is the rowkey and the second is a map that
    * associates column names to values.
    */
-  def toHBaseBulk(tableName: String, family: String, numFilesPerRegion: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
-    require(numFilesPerRegion > 0)
+  def toHBaseBulk(tableName: String, family: String, numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
+    require(numFilesPerRegionPerFamily > 0)
 
     val table = getHTable(tableName)
-    val partitioner = getPartitioner(table, numFilesPerRegion)
+    val partitioner = getPartitioner(table, numFilesPerRegionPerFamily)
 
     val rdd = mapRdd.flatMap {
       case (k, m) =>
@@ -250,13 +250,13 @@ final class HFileRDDFixed[C: ClassTag, A: ClassTag, V: ClassTag](seqRdd: RDD[(St
    * where the first value is the rowkey and the second is a sequence of values to be
    * associated to column names in `headers`.
    */
-  def toHBaseBulk(tableName: String, family: String, headers: Seq[String], numFilesPerRegion: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
-    require(numFilesPerRegion > 0)
+  def toHBaseBulk(tableName: String, family: String, headers: Seq[String], numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
+    require(numFilesPerRegionPerFamily > 0)
 
     val sc = seqRdd.context
     val headersBytes = sc.broadcast(headers map Bytes.toBytes)
     val table = getHTable(tableName)
-    val partitioner = getPartitioner(table, numFilesPerRegion)
+    val partitioner = getPartitioner(table, numFilesPerRegionPerFamily)
 
     val rdd = seqRdd.flatMap {
       case (k, v) =>
@@ -276,17 +276,17 @@ final class HFileRDD[C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(String,
    * where the first value is the rowkey and the second is a nested map that associates
    * column families and column names to values.
    */
-  def toHBaseBulk(tableName: String, numFilesPerRegion: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
-    require(numFilesPerRegion > 0)
+  def toHBaseBulk(tableName: String, numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
+    require(numFilesPerRegionPerFamily > 0)
 
     val table = getHTable(tableName)
     val families = table.getTableDescriptor.getFamiliesKeys map Bytes.toString
-    val partitioner = getPartitioner(table, numFilesPerRegion)
+    val partitioner = getPartitioner(table, numFilesPerRegionPerFamily)
 
     val rdds = for {
       f <- families
       rdd = mapRdd
-        .collect { case (k, m) if (m.contains(f)) => (Bytes.toBytes(k), m(f)) }
+        .collect { case (k, m) if m.contains(f) => (Bytes.toBytes(k), m(f)) }
         .flatMap {
           case (k, m) =>
             m map { case (h, v) => ck((k, h), v) }
