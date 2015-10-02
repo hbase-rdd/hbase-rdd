@@ -4,7 +4,7 @@ import org.apache.hadoop.hbase.filter.PrefixFilter
 import org.apache.spark.SparkContext
 import org.scalatest.{FlatSpec, BeforeAndAfter, Matchers}
 
-class ReadWriteSpec extends FlatSpec with MiniCluster with Checkers with Matchers with BeforeAndAfter {
+class ReadWriteDeleteSpec extends FlatSpec with MiniCluster with Checkers with Matchers with BeforeAndAfter {
 
   before {
     sc = new SparkContext(sparkConf)
@@ -90,6 +90,22 @@ class ReadWriteSpec extends FlatSpec with MiniCluster with Checkers with Matcher
     res should === (source filter (_._1 == a_key))
   }
 
+  it should "delete all columns of all column families from a Table" in {
+    sc.parallelize(source map { case (k, _) => (k, families.map(cf => (cf, cols.toSet)).toMap) })
+      .deleteHBase(table_all_cf)
+    val res = sc.hbase[String](table_all_cf, families)
+      .collect()
+    res should have size 0
+  }
+
+  it should "delete all columns of one column family from a Table" in {
+    sc.parallelize(source_one_cf map { case (k, c) => (k, c.keySet) })
+      .deleteHBase(table_one_cf, a_cf)
+    val res = sc.hbase[String](table_one_cf, Set(a_cf))
+      .collect()
+    res should have size 0
+  }
+
   // test again with timestamps
   "A HBaseRDD with timestamps" should "write to a Table all column families" in {
     val htable = htu.createTable(table_all_cf_ts, families.toArray)
@@ -131,5 +147,21 @@ class ReadWriteSpec extends FlatSpec with MiniCluster with Checkers with Matcher
       .collect()
     res should have size 1
     res should === (source_ts filter (_._1 == a_key))
+  }
+
+  it should "delete all columns of all column families from a Table" in {
+    sc.parallelize(source_ts map { case (k, m) => (k, m map { case (cf, cvt) => (cf, cvt map { case (c, (v, t)) => (c, t) } toSet) }) })
+      .deleteHBase(table_all_cf_ts)
+    val res = sc.hbaseTS[String](table_all_cf_ts, families)
+      .collect()
+    res should have size 0
+  }
+
+  it should "delete all columns of one column family from a Table" in {
+    sc.parallelize(source_one_cf_ts map { case (k, c) => (k, c map { case (c, (v, t)) => (c, t) } toSet) })
+      .deleteHBase(table_one_cf_ts, a_cf)
+    val res = sc.hbaseTS[String](table_one_cf_ts, Set(a_cf))
+      .collect()
+    res should have size 0
   }
 }

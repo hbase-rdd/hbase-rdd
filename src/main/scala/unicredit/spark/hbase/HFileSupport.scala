@@ -34,37 +34,37 @@ import org.apache.spark.SparkContext._
 import scala.collection.JavaConversions._
 import scala.reflect.ClassTag
 
-import HFileRDDSupport._
+import HFileMethods._
 
 trait HFileSupport {
 
   implicit lazy val cellKeyOrdering = new CellKeyOrdering
-  implicit lazy val cellKeyTOrdering = new CellKeyTOrdering
+  implicit lazy val cellKeyTSOrdering = new CellKeyTSOrdering
 
   implicit def toHFileRDDSimple[A: ClassTag](rdd: RDD[(String, Map[String, A])])(implicit writer: Writes[A]): HFileRDDSimple[CellKey, A, A] =
     new HFileRDDSimple[CellKey, A, A](rdd, gc[A], kvf[A])
 
-  implicit def toHFileRDDSimpleT[A: ClassTag](rdd: RDD[(String, Map[String, (A, Long)])])(implicit writer: Writes[A]): HFileRDDSimple[CellKeyT, (A, Long), A] =
-    new HFileRDDSimple[CellKeyT, (A, Long), A](rdd, gc[A], kvft[A])
+  implicit def toHFileRDDSimpleTS[A: ClassTag](rdd: RDD[(String, Map[String, (A, Long)])])(implicit writer: Writes[A]): HFileRDDSimple[CellKeyTS, (A, Long), A] =
+    new HFileRDDSimple[CellKeyTS, (A, Long), A](rdd, gc[A], kvft[A])
 
   implicit def toHFileRDDFixed[A: ClassTag](rdd: RDD[(String, Seq[A])])(implicit writer: Writes[A]): HFileRDDFixed[CellKey, A, A] =
     new HFileRDDFixed[CellKey, A, A](rdd, gc[A], kvf[A])
 
-  implicit def toHFileRDDFixedT[A: ClassTag](rdd: RDD[(String, Seq[(A, Long)])])(implicit writer: Writes[A]): HFileRDDFixed[CellKeyT, (A, Long), A] =
-    new HFileRDDFixed[CellKeyT, (A, Long), A](rdd, gc[A], kvft[A])
+  implicit def toHFileRDDFixedTS[A: ClassTag](rdd: RDD[(String, Seq[(A, Long)])])(implicit writer: Writes[A]): HFileRDDFixed[CellKeyTS, (A, Long), A] =
+    new HFileRDDFixed[CellKeyTS, (A, Long), A](rdd, gc[A], kvft[A])
 
   implicit def toHFileRDD[A: ClassTag](rdd: RDD[(String, Map[String, Map[String, A]])])(implicit writer: Writes[A]): HFileRDD[CellKey, A, A] =
     new HFileRDD[CellKey, A, A](rdd, gc[A], kvf[A])
 
-  implicit def toHFileRDDT[A: ClassTag](rdd: RDD[(String, Map[String, Map[String, (A, Long)]])])(implicit writer: Writes[A]): HFileRDD[CellKeyT, (A, Long), A] =
-    new HFileRDD[CellKeyT, (A, Long), A](rdd, gc[A], kvft[A])
+  implicit def toHFileRDDTS[A: ClassTag](rdd: RDD[(String, Map[String, Map[String, (A, Long)]])])(implicit writer: Writes[A]): HFileRDD[CellKeyTS, (A, Long), A] =
+    new HFileRDD[CellKeyTS, (A, Long), A](rdd, gc[A], kvft[A])
 
 }
 
-private[hbase] object HFileRDDSupport {
+private[hbase] object HFileMethods {
 
   type CellKey = (Array[Byte], Array[Byte]) // (key, qualifier)
-  type CellKeyT = (CellKey, Array[Byte]) // (CellKey, timestamp)
+  type CellKeyTS = (CellKey, Array[Byte]) // (CellKey, timestamp)
 
   type GetCellKey[C, A, V] = (CellKey, A) => (C, V)
   type KeyValueWrapper[C, V] = (C, V) => (ImmutableBytesWritable, KeyValue)
@@ -77,7 +77,7 @@ private[hbase] object HFileRDDSupport {
   // KeyValueWrapperF
   def kvf[A](f: Array[Byte])(c: CellKey, v: A)(implicit writer: Writes[A]) =
     (new ImmutableBytesWritable(c._1), new KeyValue(c._1, f, c._2, writer.write(v)))
-  def kvft[A](f: Array[Byte])(c: CellKeyT, v: A)(implicit writer: Writes[A]) =
+  def kvft[A](f: Array[Byte])(c: CellKeyTS, v: A)(implicit writer: Writes[A]) =
     (new ImmutableBytesWritable(c._1._1), new KeyValue(c._1._1, f, c._1._2, Bytes.toLong(c._2), writer.write(v)))
 
   class CellKeyOrdering extends Ordering[CellKey] {
@@ -91,9 +91,9 @@ private[hbase] object HFileRDDSupport {
     }
   }
 
-  class CellKeyTOrdering extends Ordering[CellKeyT] {
+  class CellKeyTSOrdering extends Ordering[CellKeyTS] {
     val cellKeyOrdering = new CellKeyOrdering
-    override def compare(a: CellKeyT, b: CellKeyT) = {
+    override def compare(a: CellKeyTS, b: CellKeyTS) = {
       val (ac, at) = a
       val (bc, bt) = b
       val ord = cellKeyOrdering.compare(ac, bc)
@@ -126,7 +126,7 @@ sealed abstract class HFileRDDHelper extends Serializable {
   protected abstract class HFilePartitioner extends Partitioner {
     def extractKey(n: Any) = n match {
       case (k: Array[Byte], _) => k // CellKey
-      case ((k: Array[Byte], _), _) => k //CellKeyT
+      case ((k: Array[Byte], _), _) => k //CellKeyTS
     }
   }
 
