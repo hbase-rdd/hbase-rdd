@@ -48,6 +48,7 @@ libraryDependencies ++= Seq(
   "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % "test" exclude("javax.servlet", "servlet-api"),
   "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % "test" classifier "tests",
   "org.apache.hadoop" % "hadoop-mapreduce-client-jobclient" % hadoopVersion % "test" classifier "tests" exclude("javax.servlet", "servlet-api")
+    excludeAll ExclusionRule(organization = "org.codehaus.jackson")
 )
 
 fork in Test := true

@@ -19,7 +19,7 @@ class ReadWriteSpec extends FlatSpec with MiniCluster with Checkers with Matcher
   // a column family
   val a_cf = families.head
   // some columns
-  val cols = Seq("col1", "col2", "col3")
+  val cols = Array("col1", "col2", "col3")
   // a timestamp
   val a_ts = 1L
   // a data set with all column families
@@ -30,7 +30,7 @@ class ReadWriteSpec extends FlatSpec with MiniCluster with Checkers with Matcher
   // a data set with one column family
   val source_one_cf = source map { case (k, m) => (k, m(a_cf)) }
   // a data set with all column families with timestamps
-  val source_ts = source map { case (k, cf) => (k, cf map { case (cf, d) => (cf, d map { case (c, v) => (c, (v, a_ts)) }) }) }
+  val source_ts = source map { case (k, cfm) => (k, cfm map { case (cf, d) => (cf, d map { case (c, v) => (c, (v, a_ts)) }) }) }
   // a data set with one column family with timestamps
   val source_one_cf_ts = source_ts map { case (k, m) => (k, m(a_cf)) }
   // a row key

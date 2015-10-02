@@ -16,7 +16,7 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
     sc.stop()
   }
 
-  def nextString = (1 to 10) map (_ => Random.nextPrintableChar) mkString
+  def nextString = (1 to 10) map (_ => Random.nextPrintableChar()) mkString
 
   val numKeys = 1000
   val numCols = 10
@@ -75,7 +75,7 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
     val table_bulk = table_prefix + s"_$table_counter"
     val htable = htu.createTable(table_bulk, family, splitKeys)
 
-    val source_ts = source map { case (k, cols) => (k, cols map ((_, 1L))) }
+    val source_ts = source map { case (k, colm) => (k, colm map ((_, 1L))) }
 
     sc.parallelize(source_ts)
       .toHBaseBulk(table_bulk, family, cols)
@@ -104,7 +104,7 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
     val table_bulk = table_prefix + s"_$table_counter"
     val htable = htu.createTable(table_bulk, family, 2) // create table with 2 versions per cell
 
-    val source_ts = source map { case (k, cols) => (k, cols map ((_, 2L))) }
+    val source_ts = source map { case (k, colm) => (k, colm map ((_, 2L))) }
     val row = source_ts(Random.nextInt(numKeys))
     val source_double_row = (row._1, row._2 map { case (s, _) => (s, 1L) }) +: source_ts
 

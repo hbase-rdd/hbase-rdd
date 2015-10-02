@@ -15,7 +15,7 @@ trait Checkers extends SuiteMixin with Matchers { this: Suite =>
       val get = new Get(r)
       val result = t.get(get)
 
-      Bytes.toString(result.getRow()) should === (r)
+      Bytes.toString(result.getRow) should === (r)
 
       for {
         col <- m.keys
@@ -33,7 +33,7 @@ trait Checkers extends SuiteMixin with Matchers { this: Suite =>
       val get = new Get(r)
       val result = t.get(get)
 
-      Bytes.toString(result.getRow()) should === (r)
+      Bytes.toString(result.getRow) should === (r)
 
       val data = cols zip vs
 
@@ -53,7 +53,7 @@ trait Checkers extends SuiteMixin with Matchers { this: Suite =>
       val get = new Get(r)
       val result = t.get(get)
 
-      Bytes.toString(result.getRow()) should === (r)
+      Bytes.toString(result.getRow) should === (r)
 
       for {
         cf <- m.keys
@@ -73,7 +73,7 @@ trait Checkers extends SuiteMixin with Matchers { this: Suite =>
       get.setMaxVersions(2)
       val result = t.get(get)
 
-      Bytes.toString(result.getRow()) should === (r)
+      Bytes.toString(result.getRow) should === (r)
 
       val data = cols zip vs
 
