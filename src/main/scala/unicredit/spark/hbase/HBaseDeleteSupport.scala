@@ -30,6 +30,9 @@ import HBaseDeleteMethods._
  */
 trait HBaseDeleteSupport {
 
+  implicit def deleteHBaseRDDKey(rdd: RDD[String]): HBaseDeleteRDDKey =
+    new HBaseDeleteRDDKey(rdd, del)
+
   implicit def deleteHBaseRDDSimple(rdd: RDD[(String, Set[String])]): HBaseDeleteRDDSimple[String] =
     new HBaseDeleteRDDSimple(rdd, del)
 
@@ -65,6 +68,72 @@ sealed abstract class HBaseDeleteHelpers[A] {
 
     if (empty) None else Some(new ImmutableBytesWritable, d)
   }
+
+  protected def convert(id: String, families: Set[String]) = {
+    val d = new Delete(id)
+    for (family <- families) d.deleteFamily(family)
+    Some(new ImmutableBytesWritable, d)
+  }
+
+  protected def convert(id: String) = {
+    val d = new Delete(id)
+    Some(new ImmutableBytesWritable, d)
+  }
+}
+
+final class HBaseDeleteRDDKey(val rdd: RDD[String], val del: Deleter[String]) extends HBaseDeleteHelpers[String] with Serializable {
+
+  /**
+   * Delete rows specified by rowkeys of the underlying RDD from HBase.
+   *
+   * The RDD is assumed to be an instance of `RDD[String]` of rowkeys.
+   */
+  def deleteHBase(table: String)(implicit config: HBaseConfig) = {
+    val conf = config.get
+    val job = createJob(table, conf)
+
+    rdd.flatMap({ k => convert(k) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
+  }
+
+  /**
+   * Delete column families of the underlying RDD from HBase.
+   *
+   * The RDD is assumed to be an instance of `RDD[String]` of rowkeys.
+   */
+  def deleteHBase(table: String, families: Set[String])(implicit config: HBaseConfig) = {
+    val conf = config.get
+    val job = createJob(table, conf)
+
+    rdd.flatMap({ k => convert(k, families) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
+  }
+
+  /**
+   * Delete columns of the underlying RDD from HBase.
+   *
+   * Columns are deleted from the same column family, and are the same for all rows.
+   *
+   * The RDD is assumed to be an instance of `RDD[String]` of rowkeys.
+   */
+  def deleteHBase(table: String, family: String, columns: Set[String])(implicit config: HBaseConfig) = {
+    val conf = config.get
+    val job = createJob(table, conf)
+
+    rdd.flatMap({ k => convert(k, Map(family -> columns), del) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
+  }
+
+  /**
+   * Delete columns of the underlying RDD from HBase.
+   *
+   * Columns specified as a map of families / set of qualifiers, are the same for all rows.
+   *
+   * The RDD is assumed to be an instance of `RDD[String]` of rowkeys.
+   */
+  def deleteHBase(table: String, qualifiers: Map[String, Set[String]])(implicit config: HBaseConfig) = {
+    val conf = config.get
+    val job = createJob(table, conf)
+
+    rdd.flatMap({ k => convert(k, qualifiers, del) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
+  }
 }
 
 final class HBaseDeleteRDDSimple[A](val rdd: RDD[(String, Set[A])], val del: Deleter[A]) extends HBaseDeleteHelpers[A] with Serializable {
@@ -72,7 +141,7 @@ final class HBaseDeleteRDDSimple[A](val rdd: RDD[(String, Set[A])], val del: Del
   /**
    * Delete columns of the underlying RDD from HBase.
    *
-   * Simplified form, where colums are deleted from the
+   * Simplified form, where columns are deleted from the
    * same column family.
    *
    * The RDD is assumed to be an instance of `RDD[(String, Seq[A])]`,
@@ -83,7 +152,6 @@ final class HBaseDeleteRDDSimple[A](val rdd: RDD[(String, Set[A])], val del: Del
   def deleteHBase(table: String, family: String)(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
-    createTable(table, family)
 
     rdd.flatMap({ case (k, v) => convert(k, Map(family -> v), del) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
   }
