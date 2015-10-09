@@ -21,7 +21,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.hbase.{KeyValue, TableName}
-import org.apache.hadoop.hbase.client.{Table, Connection, RegionLocator, ConnectionFactory}
+import org.apache.hadoop.hbase.client._
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.mapreduce.{ HFileOutputFormat2, LoadIncrementalHFiles }
 import org.apache.hadoop.hbase.util.Bytes
@@ -171,7 +171,7 @@ sealed abstract class HFileRDDHelper extends Serializable {
 
     // prepare path for HFiles output
     val fs = FileSystem.get(conf)
-    val hFilePath = new Path("/tmp", table.getName.getNameAsString + "_" + UUID.randomUUID())
+    val hFilePath = new Path("/tmp", table.getName + "_" + UUID.randomUUID())
     fs.makeQualified(hFilePath)
 
     try {
@@ -199,7 +199,10 @@ sealed abstract class HFileRDDHelper extends Serializable {
       setRecursivePermission(hFilePath)
 
       val lih = new LoadIncrementalHFiles(conf)
-      lih.doBulkLoad(hFilePath, connection.getAdmin, table, regionLocator)
+      // deprecated method still available in hbase 1.0.0, to be replaced with the method below since hbase 1.1.0
+      lih.doBulkLoad(hFilePath, new HTable(conf, table.getName))
+      // this is available since hbase 1.1.x
+      //lih.doBulkLoad(hFilePath, connection.getAdmin, table, regionLocator)
     } finally {
       connection.close()
 
