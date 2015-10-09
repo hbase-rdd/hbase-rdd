@@ -4,10 +4,10 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.hbase.client.{Connection, ConnectionFactory}
 import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.client.{Connection, ConnectionFactory}
-import org.apache.hadoop.hbase.{ HColumnDescriptor, TableName, HTableDescriptor }
+import org.apache.hadoop.hbase.{HColumnDescriptor, HTableDescriptor, TableName}
 import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.rdd.RDD
 
@@ -129,10 +129,8 @@ trait HBaseUtils {
      * @param tableName name of the table
      * @param families list of one or more column families
      */
-    def createTable(tableName: String, families: String*): Admin = {
+    def createTable(tableName: String, families: String*): Admin =
       createTable(tableName, families, Seq.empty)
-      this
-    }
 
     /**
      * Creates a table (if it doesn't exist already) with a column family and made of one or more regions
@@ -141,10 +139,8 @@ trait HBaseUtils {
      * @param family name of the column family
      * @param splitKeys ordered list of keys that defines region splits
      */
-    def createTable(tableName: String, family: String, splitKeys: Seq[String]): Admin = {
+    def createTable(tableName: String, family: String, splitKeys: Seq[String]): Admin =
       createTable(tableName, Seq(family), splitKeys)
-      this
-    }
   }
 
   /**
