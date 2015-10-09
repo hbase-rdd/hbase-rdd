@@ -86,7 +86,6 @@ final class HBaseWriteRDDSimple[A](val rdd: RDD[(String, Map[String, A])], val p
   def toHBase(table: String, family: String)(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
-    createTable(table, family)
 
     rdd.flatMap({ case (k, v) => convert(k, Map(family -> v), put) }).saveAsNewAPIHadoopDataset(job.getConfiguration)
   }
@@ -106,7 +105,6 @@ final class HBaseWriteRDDFixed[A](val rdd: RDD[(String, Seq[A])], val put: PutAd
   def toHBase(table: String, family: String, headers: Seq[String])(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
-    createTable(table, family)
 
     val sc = rdd.context
     val bheaders = sc.broadcast(headers)
