@@ -13,6 +13,7 @@ Table of contents
 - [A note on types](#a-note-on-types)
 - [Reading from HBase](#reading-from-hbase)
 - [Writing to HBase](#writing-to-hbase)
+- [Deleting from HBase](#deleting-from-hbase)
 - [Bulk loading to HBase](#bulk-load-to-hbase-using-hfiles)
 - [Example project](https://github.com/unicredit/hbase-rdd-examples)
 
@@ -23,7 +24,7 @@ This guide assumes you are using SBT. Usage of similar tools like Maven or Leini
 
 HBase RDD can be added as a dependency in sbt with:
 
-    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.5.3"
+    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.6.0"
 
 Currently, the project depends on the following artifacts:
 
@@ -148,7 +149,6 @@ HBase side filters are also supported by providing a custom Filter or Scan objec
 
 The return value of `sc.hbase` (note that in this case there is no type parameter) is a `RDD[(String, Result)]`. The first element is the rowkey, while the second one is an instance of `org.apache.hadoop.hbase.client.Result`, so you can use the raw HBase API to query it.
 
-
 ### Writing to HBase
 
 In order to write to HBase, some methods are added on certain types of RDD.
@@ -174,6 +174,8 @@ or, if you have a fixed set of columns, like
     val rdd: RDD[(String, Seq[A])] = ...
     rdd.toHBase(table, cf, headers)
 
+where `headers` are column names for `Seq[A]` values.
+
 If you need to write timestamps, you can use a tuple (A, Long) in your RDD, where the second element represents the timestamp, like
 
     val rdd: RDD[(String, Map[String, Map[String, (A, Long)]])] = ...
@@ -188,6 +190,47 @@ or, with a fixed set of columns
 
 You can have a look at `WriteTsvToHBase.scala` in [hbase-rdd-examples project](https://github.com/unicredit/hbase-rdd-examples) on how to write a TSV file from `Hdfs` to `HBase`
 
+### Deleting from HBase
+
+In order to delete from HBase, some methods are added on certain types of RDD.
+
+Assume you have an `RDD[(String, Map[String, Set[String])]` of row keys and a map of families / set of columns. Then you can delete from HBase with the method `deleteHBase`, like
+
+    val table = "t1"
+    val rdd: RDD[(String, Map[String, Set[String])] = ...
+    rdd.deleteHBase(table)
+
+A simplified form is available in the case that one only needs to delete from a single column family. Then a similar method is available on `RDD[(String, Set[String])]` of row keys and a set of columns, which can be used as follows
+
+    val table = "t1"
+    val cf = "cf1"
+    val rdd: RDD[(String, Set[String])] = ...
+    rdd.deleteHBase(table, cf)
+
+or, if you want to delete a fixed set of columns of one column family, or whole column families, or whole rows, some methods are available on `RDD[String]` of row keys, which can be used as follows
+
+    val table = "t1"
+    val cf = "cf1"
+    val headers: Seq[String] = ...
+    val rdd: RDD[String] = ...
+    rdd.toHBase(table, cf, headers)
+
+or
+
+    val cfs = Set("cf1", "cf2")
+    rdd.deleteHBase(table, cfs)
+
+or
+
+    rdd.deleteHBase(table)
+
+If you need to delete with timestamps, you can use a tuple (String, Long) in your RDD, where the first element is a column and the second element represents the timestamp, like
+
+    val rdd: RDD[(String, Map[String, Set[(String, Long)]])] = ...
+
+or, for the simplified form, like
+
+    val rdd: RDD[(String, Set[(String, Long)])] = ...
 
 ### Bulk load to HBase, using HFiles
 
@@ -205,6 +248,12 @@ A better approach is to create HFiles instead, and than call LoadIncrementalHFil
 Now you can perform steps 2 to 4 with a call to `toHBaseBulk`, like
 
     val table = "t1"
+    val rdd: RDD[(String, Map[String, Map[String, A]])] = ...
+    rdd.toHBaseBulk(table)
+
+A simplified form is available in the case that one only needs to write on a single column family
+
+    val table = "t1"
     val cf = "cf1"
     val rdd: RDD[(String, Map[String, A])] = ...
     rdd.toHBaseBulk(table, cf)
@@ -217,10 +266,13 @@ or, if you have a fixed set of columns, like
     val rdd: RDD[(String, Seq[A])] = ...
     rdd.toHBaseBulk(table, cf, headers)
 
-where `headers` are column names for `Seq[V]` values.
-The only limitation is that you can work with only one column family.
+where `headers` are column names for `Seq[A]` values.
 
 If you need to write timestamps, you can use a tuple `(A, Long)` in your `RDD`, where the second element represents the timestamp, like
+
+    val rdd: RDD[(String, Map[String, Map[String, (A, Long)]])] = ...
+
+or, for the simplified form, like
 
     val rdd: RDD[(String, Map[String, (A, Long)])] = ...
 
@@ -230,10 +282,13 @@ or, in case of a fixed set of columns, like
 
 But what about step 1? For this, a few helper methods come to the rescue.
 
-- `tableExists(tableName: String, cFamily: String)`: checks if the table exists, and returns true or false accordingly. If the table `tableName` exists but the column family `cFamily` does not, an `IllegalArgumentException is thrown
+- `tableExists(tableName: String, family: String)`: checks if the table exists, and returns true or false accordingly. If the table `tableName` exists but the column family `family` does not, an `IllegalArgumentException` is thrown
+- `tableExists(tableName: String, families: Set[String])`: checks if the table exists, and returns true or false accordingly. If the table `tableName` exists but at least one of `families` does not, an `IllegalArgumentException` is thrown
 - `snapshot(tableName: String)`: creates a snapshot of table `tableName`, named `<tablename>_yyyyMMddHHmmss` (suffix is the date and time of the snapshot operation)
 - `snapshot(tableName: String, snapshotName: String)`: creates a snapshot of table `tableName`, named `snapshotName
-- `createTable(tableName: String, cFamily: String, splitKeys: Seq[String])`: creates a table `tableName` with column family `cFamily`and regions defined by a sorted sequence of split keys `splitKeys`
+- `createTable(tableName: String, family: String, splitKeys: Seq[String])`: creates a table `tableName` with column family `family` and regions defined by a sorted sequence of split keys `splitKeys`
+- `createTable(tableName: String, families: Set[String], splitKeys: Seq[String])`: creates a table `tableName` with column families `families` and regions defined by a sorted sequence of split keys `splitKeys`
+- `createTable(tableName: String, families: String*)`: creates a table `tableName` with column families `families`
 - `computeSplits(rdd: RDD[String], regionsCount: Int)`: given an `RDD`of keys and desired number of regions (`regionsCount`), returns a sorted sequence of split keys, to be used with `createTable()`
 
 You can have a look at `ImportTsvToHFiles.scala` in [hbase-rdd-examples project](https://github.com/unicredit/hbase-rdd-examples) on how to bulk load a TSV file from `Hdfs` to `HBase`
@@ -241,10 +296,14 @@ You can have a look at `ImportTsvToHFiles.scala` in [hbase-rdd-examples project]
 #### Set the Number of HFiles per Region per Family
 
 For best performance, HBase should use 1 HFile per region per family. On the other hand, the more HFiles you use, the more partitions you have in your Spark job, hence Spark tasks run faster and consume less memory heap.
-You can fine tune this opposite requirement by passing an additional optional parameter to `toHBaseBulk()` method, `numFilesPerRegion=<N>` where N (default is 1) is a number between 1 and `hbase.mapreduce.bulkload.max.hfiles.perRegion.perFamily` parameter (default is 32), e.g.
+You can fine tune this opposite requirement by passing an additional optional parameter to `toHBaseBulk()` method, `numFilesPerRegionPerFamily=<N>` where N (default is 1) is a number between 1 and `hbase.mapreduce.bulkload.max.hfiles.perRegion.perFamily` parameter (default is 32), e.g.
 
-    rdd.toHBaseBulk(table, cf, numFilesPerRegion=32)
+    rdd.toHBaseBulk(table, numFilesPerRegionPerFamily=32)
 
 or
 
-    rdd.toHBaseBulk(table, cf, headers, numFilesPerRegion=32)
+    rdd.toHBaseBulk(table, cf, numFilesPerRegionPerFamily=32)
+
+or
+
+    rdd.toHBaseBulk(table, cf, headers, numFilesPerRegionPerFamily=32)
