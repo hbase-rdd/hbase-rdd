@@ -5,3 +5,7 @@ project/target/
 .idea/
 .sbtopts
 *.iml
+.cache
+.classpath
+.project
+.settings
