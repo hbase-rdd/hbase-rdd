@@ -20,7 +20,7 @@ scalacOptions ++= Seq(
 
 org.scalastyle.sbt.ScalastylePlugin.Settings
 
-val sparkVersion = "1.3.0"
+val sparkVersion = "1.5.0"
 val hbaseVersion = "1.0.0"
 val hadoopVersion = "2.6.0"
 
