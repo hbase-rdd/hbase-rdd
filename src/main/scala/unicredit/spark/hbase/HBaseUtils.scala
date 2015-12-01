@@ -4,10 +4,10 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 
 import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.hbase.client.{Connection, ConnectionFactory}
 import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.{HColumnDescriptor, TableName, HTableDescriptor}
-import org.apache.hadoop.hbase.client.HBaseAdmin
+import org.apache.hadoop.hbase.{HColumnDescriptor, HTableDescriptor, TableName}
 import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.rdd.RDD
 
@@ -26,106 +26,122 @@ trait HBaseUtils {
     job
   }
 
-  /**
-   * Checks if table exists, and requires that it contains the desired column family
-   *
-   * @param tableName name of the table
-   * @param family name of the column family
-   *
-   * @return true if table exists, false otherwise
-   */
-  def tableExists(tableName: String, family: String)(implicit config: HBaseConfig): Boolean = {
-    val admin = new HBaseAdmin(config.get)
-    if (admin.tableExists(tableName)) {
-      val families = admin.getTableDescriptor(tableName.getBytes).getFamiliesKeys
-      require(families.contains(family.getBytes), s"Table [$tableName] exists but column family [$family] is missing")
-      true
-    } else false
+  object Admin {
+    def apply()(implicit config: HBaseConfig) = new Admin(ConnectionFactory.createConnection(config.get))
   }
 
-  /**
-   * Checks if table exists, and requires that it contains the desired column families
-   *
-   * @param tableName name of the table
-   * @param families name of the column families
-   *
-   * @return true if table exists, false otherwise
-   */
-  def tableExists(tableName: String, families: Set[String])(implicit config: HBaseConfig): Boolean = {
-    val admin = new HBaseAdmin(config.get)
-    if (admin.tableExists(tableName)) {
-      val tfamilies = admin.getTableDescriptor(tableName.getBytes).getFamiliesKeys
-      for (family <- families)
-        require(tfamilies.contains(family.getBytes), s"Table [$tableName] exists but column family [$family] is missing")
-      true
-    } else false
-  }
+  class Admin(connection: Connection) {
+    /**
+     * Closes the connection to HBase. Must the Admin instance is no more needed
+     */
+    def close = connection.close()
 
-  /**
-   * Takes a snapshot of the table, the snapshot's name has format "tableName_yyyyMMddHHmmss"
-   *
-   * @param tableName name of the table
-   */
-  def snapshot(tableName: String)(implicit config: HBaseConfig): Unit = {
-    val sdf = new SimpleDateFormat("yyyyMMddHHmmss")
-    val suffix = sdf.format(Calendar.getInstance().getTime)
-    snapshot(tableName, s"${tableName}_$suffix")
-  }
-
-  /**
-   * Takes a snapshot of the table
-   *
-   * @param tableName name of the table
-   * @param snapshotName name of the snapshot
-   */
-  def snapshot(tableName: String, snapshotName: String)(implicit config: HBaseConfig): Unit = {
-    val admin = new HBaseAdmin(config.get)
-    val tableDescriptor = new HTableDescriptor(TableName.valueOf(tableName))
-    val tName = tableDescriptor.getTableName
-    admin.snapshot(snapshotName, tName)
-  }
-
-  /**
-   * Creates a table (if it doesn't exist already) with one or more column families
-   * and made of one or more regions
-   *
-   * @param tableName name of the table
-   * @param families list of column families
-   * @param splitKeys ordered list of keys that defines region splits
-   */
-  def createTable(tableName: String, families: Seq[String], splitKeys: Seq[String])(implicit config: HBaseConfig): Unit = {
-    val admin = new HBaseAdmin(config.get)
-    val table = TableName.valueOf(tableName)
-    if (!admin.isTableAvailable(table)) {
-      val tableDescriptor = new HTableDescriptor(table)
-      families foreach { f => tableDescriptor.addFamily(new HColumnDescriptor(f)) }
-      if (splitKeys.isEmpty)
-        admin.createTable(tableDescriptor)
-      else {
-        val splitKeysBytes = splitKeys.map(Bytes.toBytes).toArray
-        admin.createTable(tableDescriptor, splitKeysBytes)
-      }
+    /**
+     * Checks if table exists, and requires that it contains the desired column family
+     *
+     * @param table name of the table
+     * @param family name of the column family
+     *
+     * @return true if table exists, false otherwise
+     */
+    def tableExists(table: String, family: String): Boolean = {
+      val admin = connection.getAdmin
+      val tableName = TableName.valueOf(table)
+      if (admin.tableExists(tableName)) {
+        val families = admin.getTableDescriptor(tableName).getFamiliesKeys
+        require(families.contains(family.getBytes), s"Table [$tableName] exists but column family [$family] is missing")
+        true
+      } else false
     }
+
+    /**
+     * Checks if table exists, and requires that it contains the desired column families
+     *
+     * @param table name of the table
+     * @param families name of the column families
+     *
+     * @return true if table exists, false otherwise
+     */
+    def tableExists(table: String, families: Set[String]): Boolean = {
+      val admin = connection.getAdmin
+      val tableName = TableName.valueOf(table)
+      if (admin.tableExists(tableName)) {
+        val tfamilies = admin.getTableDescriptor(tableName).getFamiliesKeys
+        for (family <- families)
+          require(tfamilies.contains(family.getBytes), s"Table [$tableName] exists but column family [$family] is missing")
+        true
+      } else false
+    }
+
+    /**
+     * Takes a snapshot of the table, the snapshot's name has format "tableName_yyyyMMddHHmmss"
+     *
+     * @param table name of the table
+     */
+    def snapshot(table: String): Admin = {
+      val sdf = new SimpleDateFormat("yyyyMMddHHmmss")
+      val suffix = sdf.format(Calendar.getInstance().getTime)
+      snapshot(table, s"${table}_$suffix")
+      this
+    }
+
+    /**
+     * Takes a snapshot of the table
+     *
+     * @param table name of the table
+     * @param snapshotName name of the snapshot
+     */
+    def snapshot(table: String, snapshotName: String): Admin = {
+      val admin = connection.getAdmin
+      val tableDescriptor = new HTableDescriptor(TableName.valueOf(table))
+      val tName = tableDescriptor.getTableName
+      admin.snapshot(snapshotName, tName)
+      this
+    }
+
+    /**
+     * Creates a table (if it doesn't exist already) with one or more column families
+     * and made of one or more regions
+     *
+     * @param tableName name of the table
+     * @param families list of column families
+     * @param splitKeys ordered list of keys that defines region splits
+     */
+    def createTable(tableName: String, families: Seq[String], splitKeys: Seq[String]): Admin = {
+      val admin = connection.getAdmin
+      val table = TableName.valueOf(tableName)
+      if (!admin.isTableAvailable(table)) {
+        val tableDescriptor = new HTableDescriptor(table)
+        families foreach { f => tableDescriptor.addFamily(new HColumnDescriptor(f)) }
+        if (splitKeys.isEmpty)
+          admin.createTable(tableDescriptor)
+        else {
+          val splitKeysBytes = splitKeys.map(Bytes.toBytes).toArray
+          admin.createTable(tableDescriptor, splitKeysBytes)
+        }
+      }
+      this
+    }
+
+    /**
+     * Creates a table (if it doesn't exist already) with one or more column families
+     *
+     * @param tableName name of the table
+     * @param families list of one or more column families
+     */
+    def createTable(tableName: String, families: String*): Admin =
+      createTable(tableName, families, Seq.empty)
+
+    /**
+     * Creates a table (if it doesn't exist already) with a column family and made of one or more regions
+     *
+     * @param tableName name of the table
+     * @param family name of the column family
+     * @param splitKeys ordered list of keys that defines region splits
+     */
+    def createTable(tableName: String, family: String, splitKeys: Seq[String]): Admin =
+      createTable(tableName, Seq(family), splitKeys)
   }
-
-  /**
-   * Creates a table (if it doesn't exist already) with one or more column families
-   *
-   * @param tableName name of the table
-   * @param families list of one or more column families
-   */
-  def createTable(tableName: String, families: String*)(implicit config: HBaseConfig): Unit =
-    createTable(tableName, families, Seq.empty)
-
-  /**
-   * Creates a table (if it doesn't exist already) with a column family and made of one or more regions
-   *
-   * @param tableName name of the table
-   * @param family name of the column family
-   * @param splitKeys ordered list of keys that defines region splits
-   */
-  def createTable(tableName: String, family: String, splitKeys: Seq[String])(implicit config: HBaseConfig): Unit =
-    createTable(tableName, Seq(family), splitKeys)
 
   /**
    * Given a RDD of keys and the number of requested table's regions, returns an array

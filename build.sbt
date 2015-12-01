@@ -6,9 +6,9 @@ name := "hbase-rdd"
 
 organization := "eu.unicredit"
 
-version := "0.6.0"
+version := "0.7.0"
 
-scalaVersion := "2.10.4"
+scalaVersion := "2.10.6"
 
 scalacOptions ++= Seq(
   "-deprecation",
@@ -20,14 +20,9 @@ scalacOptions ++= Seq(
 
 org.scalastyle.sbt.ScalastylePlugin.Settings
 
-resolvers ++= Seq(
-  "Cloudera repos" at "https://repository.cloudera.com/artifactory/cloudera-repos",
-  "Cloudera releases" at "https://repository.cloudera.com/artifactory/libs-release"
-)
-
-val sparkVersion = "1.2.0"
-val hbaseVersion = "0.98.6-cdh5.3.1"
-val hadoopVersion = "2.5.0-cdh5.3.1"
+val sparkVersion = "1.5.0"
+val hbaseVersion = "1.0.0"
+val hadoopVersion = "2.6.0"
 
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
@@ -41,14 +36,13 @@ libraryDependencies ++= Seq(
   "org.apache.hbase" % "hbase-server" % hbaseVersion % "test" classifier "tests" exclude("org.mortbay.jetty", "servlet-api-2.5"),
   "org.apache.hbase" % "hbase-hadoop-compat" % hbaseVersion % "test",
   "org.apache.hbase" % "hbase-hadoop-compat" % hbaseVersion % "test" classifier "tests",
-  "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion % "test",
+  "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion % "test" exclude("javax.servlet", "servlet-api"),
   "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion % "test" classifier "tests",
-  "org.apache.hadoop" % "hadoop-common" % hadoopVersion % "test" exclude("javax.servlet", "servlet-api") exclude("com.google.guava", "guava"),
+  "org.apache.hadoop" % "hadoop-common" % hadoopVersion % "test" exclude("javax.servlet", "servlet-api"),
   "org.apache.hadoop" % "hadoop-common" % hadoopVersion % "test" classifier "tests",
   "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % "test" exclude("javax.servlet", "servlet-api"),
   "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % "test" classifier "tests",
   "org.apache.hadoop" % "hadoop-mapreduce-client-jobclient" % hadoopVersion % "test" classifier "tests" exclude("javax.servlet", "servlet-api")
-    excludeAll ExclusionRule(organization = "org.codehaus.jackson")
 )
 
 fork in Test := true

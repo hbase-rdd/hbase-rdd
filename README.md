@@ -24,22 +24,17 @@ This guide assumes you are using SBT. Usage of similar tools like Maven or Leini
 
 HBase RDD can be added as a dependency in sbt with:
 
-    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.6.0"
+    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.7.0"
 
 Currently, the project depends on the following artifacts:
 
-    "org.apache.spark" %% "spark-core" % "1.2.0" % "provided",
-    "org.apache.hbase" % "hbase-common" % "0.98.6-cdh5.3.1" % "provided",
-    "org.apache.hbase" % "hbase-client" % "0.98.6-cdh5.3.1" % "provided",
-    "org.apache.hbase" % "hbase-server" % "0.98.6-cdh5.3.1" % "provided",
+    "org.apache.spark" %% "spark-core" % "1.5.0" % "provided",
+    "org.apache.hbase" % "hbase-common" % "1.0.0" % "provided",
+    "org.apache.hbase" % "hbase-client" % "1.0.0" % "provided",
+    "org.apache.hbase" % "hbase-server" % "1.0.0" % "provided",
     "org.json4s" %% "json4s-jackson" % "3.2.11" % "provided"
 
-All dependencies appear with `provided` scope, so you will have to either have these dependencies in your project, or have the corresponding artifacts available locally in your cluster. Most of them are available in the Cloudera repositories, which you can add with the following line:
-
-    resolvers ++= Seq(
-      "Cloudera repos" at "https://repository.cloudera.com/artifactory/cloudera-repos",
-      "Cloudera releases" at "https://repository.cloudera.com/artifactory/libs-release"
-    )
+All dependencies appear with `provided` scope, so you will have to either have these dependencies in your project, or have the corresponding artifacts available locally in your cluster.
 
 Usage
 -----
@@ -280,16 +275,25 @@ or, in case of a fixed set of columns, like
 
     val rdd: RDD[(String, Seq[(A, Long)])] = ...
 
-But what about step 1? For this, a few helper methods come to the rescue.
+But what about step 1? For this, an `Admin` object with a few helper methods come to the rescue.
+You must open a connection to HBase (as required since version 1.0.0), by instancing it
 
-- `tableExists(tableName: String, family: String)`: checks if the table exists, and returns true or false accordingly. If the table `tableName` exists but the column family `family` does not, an `IllegalArgumentException` is thrown
-- `tableExists(tableName: String, families: Set[String])`: checks if the table exists, and returns true or false accordingly. If the table `tableName` exists but at least one of `families` does not, an `IllegalArgumentException` is thrown
-- `snapshot(tableName: String)`: creates a snapshot of table `tableName`, named `<tablename>_yyyyMMddHHmmss` (suffix is the date and time of the snapshot operation)
-- `snapshot(tableName: String, snapshotName: String)`: creates a snapshot of table `tableName`, named `snapshotName
-- `createTable(tableName: String, family: String, splitKeys: Seq[String])`: creates a table `tableName` with column family `family` and regions defined by a sorted sequence of split keys `splitKeys`
-- `createTable(tableName: String, families: Set[String], splitKeys: Seq[String])`: creates a table `tableName` with column families `families` and regions defined by a sorted sequence of split keys `splitKeys`
-- `createTable(tableName: String, families: String*)`: creates a table `tableName` with column families `families`
-- `computeSplits(rdd: RDD[String], regionsCount: Int)`: given an `RDD`of keys and desired number of regions (`regionsCount`), returns a sorted sequence of split keys, to be used with `createTable()`
+      val admin = Admin()
+
+and then
+
+- `admin.tableExists(tableName: String, family: String)`: checks if the table exists, and returns true or false accordingly. If the table `tableName` exists but the column family `family` does not, an `IllegalArgumentException` is thrown
+- `admin.tableExists(tableName: String, families: Set[String])`: checks if the table exists, and returns true or false accordingly. If the table `tableName` exists but at least one of `families` does not, an `IllegalArgumentException` is thrown
+- `admin.snapshot(tableName: String)`: creates a snapshot of table `tableName`, named `<tablename>_yyyyMMddHHmmss` (suffix is the date and time of the snapshot operation)
+- `admin.snapshot(tableName: String, snapshotName: String)`: creates a snapshot of table `tableName`, named `snapshotName
+- `admin.createTable(tableName: String, family: String, splitKeys: Seq[String])`: creates a table `tableName` with column family `family` and regions defined by a sorted sequence of split keys `splitKeys`
+- `admin.createTable(tableName: String, families: Set[String], splitKeys: Seq[String])`: creates a table `tableName` with column families `families` and regions defined by a sorted sequence of split keys `splitKeys`
+- `admin.createTable(tableName: String, families: String*)`: creates a table `tableName` with column families `families`
+- `admin.computeSplits(rdd: RDD[String], regionsCount: Int)`: given an `RDD`of keys and desired number of regions (`regionsCount`), returns a sorted sequence of split keys, to be used with `createTable()`
+
+finally you must close the connection to HBase with
+
+    admin.close
 
 You can have a look at `ImportTsvToHFiles.scala` in [hbase-rdd-examples project](https://github.com/unicredit/hbase-rdd-examples) on how to bulk load a TSV file from `Hdfs` to `HBase`
 

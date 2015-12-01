@@ -19,17 +19,16 @@ import java.util.UUID
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.permission.FsPermission
-import org.apache.hadoop.fs.{ FileSystem, Path }
-import org.apache.hadoop.hbase.client.HTable
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.hbase.{KeyValue, TableName}
+import org.apache.hadoop.hbase.client._
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.hadoop.hbase.mapreduce.{ HFileOutputFormat2, LoadIncrementalHFiles }
 import org.apache.hadoop.hbase.util.Bytes
-import org.apache.hadoop.hbase.KeyValue
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner
 import org.apache.spark.rdd.RDD
 import org.apache.spark.Partitioner
-import org.apache.spark.SparkContext._
 
 import scala.collection.JavaConversions._
 import scala.reflect.ClassTag
@@ -155,10 +154,8 @@ sealed abstract class HFileRDDHelper extends Serializable {
     override def numPartitions: Int = splits.length
   }
 
-  protected def getHTable(tableName: String)(implicit config: HBaseConfig) = new HTable(config.get, tableName)
-
-  protected def getPartitioner(hTable: HTable, numFilesPerRegionPerFamily: Int)(implicit config: HBaseConfig) =
-    HFilePartitioner(config.get, hTable.getStartKeys, numFilesPerRegionPerFamily)
+  protected def getPartitioner(regionLocator: RegionLocator, numFilesPerRegionPerFamily: Int)(implicit config: HBaseConfig) =
+    HFilePartitioner(config.get, regionLocator.getStartKeys, numFilesPerRegionPerFamily)
 
   protected def getPartitionedRdd[C: ClassTag, A: ClassTag](rdd: RDD[(C, A)], kv: KeyValueWrapper[C, A], partitioner: HFilePartitioner)(implicit ord: Ordering[C]) = {
     rdd
@@ -166,15 +163,15 @@ sealed abstract class HFileRDDHelper extends Serializable {
       .map { case (cell, value) => kv(cell, value) }
   }
 
-  protected def saveAsHFile(rdd: RDD[(ImmutableBytesWritable, KeyValue)], hTable: HTable)(implicit config: HBaseConfig) = {
+  protected def saveAsHFile(rdd: RDD[(ImmutableBytesWritable, KeyValue)], table: Table, regionLocator: RegionLocator, connection: Connection)(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = Job.getInstance(conf, this.getClass.getName.split('$')(0))
 
-    HFileOutputFormat2.configureIncrementalLoad(job, hTable)
+    HFileOutputFormat2.configureIncrementalLoad(job, table, regionLocator)
 
     // prepare path for HFiles output
     val fs = FileSystem.get(conf)
-    val hFilePath = new Path("/tmp", hTable.getName.getNameAsString + "_" + UUID.randomUUID())
+    val hFilePath = new Path("/tmp", table.getName + "_" + UUID.randomUUID())
     fs.makeQualified(hFilePath)
 
     try {
@@ -202,8 +199,13 @@ sealed abstract class HFileRDDHelper extends Serializable {
       setRecursivePermission(hFilePath)
 
       val lih = new LoadIncrementalHFiles(conf)
-      lih.doBulkLoad(hFilePath, hTable)
+      // deprecated method still available in hbase 1.0.0, to be replaced with the method below since hbase 1.1.0
+      lih.doBulkLoad(hFilePath, new HTable(conf, table.getName))
+      // this is available since hbase 1.1.x
+      //lih.doBulkLoad(hFilePath, connection.getAdmin, table, regionLocator)
     } finally {
+      connection.close()
+
       fs.deleteOnExit(hFilePath)
 
       // clean HFileOutputFormat2 stuff
@@ -223,11 +225,16 @@ final class HFileRDDSimple[C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(S
    * where the first value is the rowkey and the second is a map that
    * associates column names to values.
    */
-  def toHBaseBulk(tableName: String, family: String, numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
+  def toHBaseBulk(tableNameStr: String, family: String, numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
     require(numFilesPerRegionPerFamily > 0)
 
-    val table = getHTable(tableName)
-    val partitioner = getPartitioner(table, numFilesPerRegionPerFamily)
+    val conf = config.get
+    val tableName = TableName.valueOf(tableNameStr)
+    val connection = ConnectionFactory.createConnection(conf)
+    val regionLocator = connection.getRegionLocator(tableName)
+    val table = connection.getTable(tableName)
+
+    val partitioner = getPartitioner(regionLocator, numFilesPerRegionPerFamily)
 
     val rdd = mapRdd.flatMap {
       case (k, m) =>
@@ -235,7 +242,7 @@ final class HFileRDDSimple[C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(S
         m map { case (h, v) => ck((keyBytes, h), v) }
     }
 
-    saveAsHFile(getPartitionedRdd(rdd, kvf(family), partitioner), table)
+    saveAsHFile(getPartitionedRdd(rdd, kvf(family), partitioner), table, regionLocator, connection)
   }
 }
 
@@ -250,13 +257,18 @@ final class HFileRDDFixed[C: ClassTag, A: ClassTag, V: ClassTag](seqRdd: RDD[(St
    * where the first value is the rowkey and the second is a sequence of values to be
    * associated to column names in `headers`.
    */
-  def toHBaseBulk(tableName: String, family: String, headers: Seq[String], numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
+  def toHBaseBulk(tableNameStr: String, family: String, headers: Seq[String], numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
     require(numFilesPerRegionPerFamily > 0)
+
+    val conf = config.get
+    val tableName = TableName.valueOf(tableNameStr)
+    val connection = ConnectionFactory.createConnection(conf)
+    val regionLocator = connection.getRegionLocator(tableName)
+    val table = connection.getTable(tableName)
 
     val sc = seqRdd.context
     val headersBytes = sc.broadcast(headers map Bytes.toBytes)
-    val table = getHTable(tableName)
-    val partitioner = getPartitioner(table, numFilesPerRegionPerFamily)
+    val partitioner = getPartitioner(regionLocator, numFilesPerRegionPerFamily)
 
     val rdd = seqRdd.flatMap {
       case (k, v) =>
@@ -264,7 +276,7 @@ final class HFileRDDFixed[C: ClassTag, A: ClassTag, V: ClassTag](seqRdd: RDD[(St
         (headersBytes.value zip v) map { case (h, v) => ck((keyBytes, h), v) }
     }
 
-    saveAsHFile(getPartitionedRdd(rdd, kvf(family), partitioner), table)
+    saveAsHFile(getPartitionedRdd(rdd, kvf(family), partitioner), table, regionLocator, connection)
   }
 }
 
@@ -276,12 +288,17 @@ final class HFileRDD[C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(String,
    * where the first value is the rowkey and the second is a nested map that associates
    * column families and column names to values.
    */
-  def toHBaseBulk(tableName: String, numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
+  def toHBaseBulk(tableNameStr: String, numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
     require(numFilesPerRegionPerFamily > 0)
 
-    val table = getHTable(tableName)
+    val conf = config.get
+    val tableName = TableName.valueOf(tableNameStr)
+    val connection = ConnectionFactory.createConnection(conf)
+    val regionLocator = connection.getRegionLocator(tableName)
+    val table = connection.getTable(tableName)
+
     val families = table.getTableDescriptor.getFamiliesKeys map Bytes.toString
-    val partitioner = getPartitioner(table, numFilesPerRegionPerFamily)
+    val partitioner = getPartitioner(regionLocator, numFilesPerRegionPerFamily)
 
     val rdds = for {
       f <- families
@@ -293,6 +310,6 @@ final class HFileRDD[C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(String,
         }
     } yield getPartitionedRdd(rdd, kv(f), partitioner)
 
-    saveAsHFile(rdds.reduce(_ ++ _), table)
+    saveAsHFile(rdds.reduce(_ ++ _), table, regionLocator, connection)
   }
 }

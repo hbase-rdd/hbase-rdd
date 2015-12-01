@@ -18,9 +18,8 @@ package unicredit.spark.hbase
 import org.apache.hadoop.hbase.client.Delete
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
 import org.apache.spark.rdd.RDD
-import org.apache.spark.SparkContext._
 
-import HBaseDeleteMethods._
+import unicredit.spark.hbase.HBaseDeleteMethods._
 
 /**
  * Adds implicit methods to `RDD[(String, Map[String, A])]`,
@@ -50,8 +49,8 @@ private[hbase] object HBaseDeleteMethods {
   type Deleter[A] = (Delete, Array[Byte], A) => Delete
 
   // Delete
-  def del(delete: Delete, cf: Array[Byte], q: String) = delete.deleteColumns(cf, q)
-  def delT(delete: Delete, cf: Array[Byte], qt: (String, Long)) = delete.deleteColumn(cf, qt._1, qt._2)
+  def del(delete: Delete, cf: Array[Byte], q: String) = delete.addColumns(cf, q)
+  def delT(delete: Delete, cf: Array[Byte], qt: (String, Long)) = delete.addColumn(cf, qt._1, qt._2)
 }
 
 sealed abstract class HBaseDeleteHelpers[A] {
@@ -71,7 +70,7 @@ sealed abstract class HBaseDeleteHelpers[A] {
 
   protected def convert(id: String, families: Set[String]) = {
     val d = new Delete(id)
-    for (family <- families) d.deleteFamily(family)
+    for (family <- families) d.addFamily(family)
     Some(new ImmutableBytesWritable, d)
   }
 
