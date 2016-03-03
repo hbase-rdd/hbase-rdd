@@ -171,7 +171,7 @@ sealed abstract class HFileRDDHelper extends Serializable {
 
     // prepare path for HFiles output
     val fs = FileSystem.get(conf)
-    val hFilePath = new Path("/tmp", table.getName + "_" + UUID.randomUUID())
+    val hFilePath = new Path("/tmp", table.getName.getQualifierAsString + "_" + UUID.randomUUID())
     fs.makeQualified(hFilePath)
 
     try {
