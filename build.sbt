@@ -6,7 +6,7 @@ name := "hbase-rdd"
 
 organization := "eu.unicredit"
 
-version := "0.7.0"
+version := "0.7.1"
 
 scalaVersion := "2.10.6"
 
@@ -20,9 +20,14 @@ scalacOptions ++= Seq(
 
 org.scalastyle.sbt.ScalastylePlugin.Settings
 
+resolvers ++= Seq(
+  "Cloudera repos" at "https://repository.cloudera.com/artifactory/cloudera-repos",
+  "Cloudera releases" at "https://repository.cloudera.com/artifactory/libs-release"
+)
+
 val sparkVersion = "1.5.0"
-val hbaseVersion = "1.0.0"
-val hadoopVersion = "2.6.0"
+val hbaseVersion = "1.0.0-cdh5.5.1"
+val hadoopVersion = "2.6.0-cdh5.5.1"
 
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
