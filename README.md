@@ -24,17 +24,22 @@ This guide assumes you are using SBT. Usage of similar tools like Maven or Leini
 
 HBase RDD can be added as a dependency in sbt with:
 
-    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.7.0"
+    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.7.1"
 
 Currently, the project depends on the following artifacts:
 
     "org.apache.spark" %% "spark-core" % "1.5.0" % "provided",
-    "org.apache.hbase" % "hbase-common" % "1.0.0" % "provided",
-    "org.apache.hbase" % "hbase-client" % "1.0.0" % "provided",
-    "org.apache.hbase" % "hbase-server" % "1.0.0" % "provided",
+    "org.apache.hbase" % "hbase-common" % "1.0.0-cdh5.5.1" % "provided",
+    "org.apache.hbase" % "hbase-client" % "1.0.0-cdh5.5.1" % "provided",
+    "org.apache.hbase" % "hbase-server" % "1.0.0-cdh5.5.1" % "provided",
     "org.json4s" %% "json4s-jackson" % "3.2.11" % "provided"
 
-All dependencies appear with `provided` scope, so you will have to either have these dependencies in your project, or have the corresponding artifacts available locally in your cluster.
+All dependencies appear with `provided` scope, so you will have to either have these dependencies in your project, or have the corresponding artifacts available locally in your cluster. Most of them are available in the Cloudera repositories, which you can add with the following line:
+
+    resolvers ++= Seq(
+      "Cloudera repos" at "https://repository.cloudera.com/artifactory/cloudera-repos",
+      "Cloudera releases" at "https://repository.cloudera.com/artifactory/libs-release"
+    )
 
 Usage
 -----
@@ -288,7 +293,11 @@ and then
 - `admin.snapshot(tableName: String, snapshotName: String)`: creates a snapshot of table `tableName`, named `snapshotName
 - `admin.createTable(tableName: String, family: String, splitKeys: Seq[String])`: creates a table `tableName` with column family `family` and regions defined by a sorted sequence of split keys `splitKeys`
 - `admin.createTable(tableName: String, families: Set[String], splitKeys: Seq[String])`: creates a table `tableName` with column families `families` and regions defined by a sorted sequence of split keys `splitKeys`
+- `admin.createTable(tableName: String, families: Set[String])`: creates a table `tableName` with column families `families`
 - `admin.createTable(tableName: String, families: String*)`: creates a table `tableName` with column families `families`
+- `admin.disableTable(tableName: String)`: disables table `tableName` (a table must be disabled before deletion)
+- `admin.deleteTable(tableName: String)`: deletes table `tableName`
+- `admin.truncateTable(tableName: String, preserveSplits: Boolean)`: truncates table `tableName`, optionally preserving region splits
 - `admin.computeSplits(rdd: RDD[String], regionsCount: Int)`: given an `RDD`of keys and desired number of regions (`regionsCount`), returns a sorted sequence of split keys, to be used with `createTable()`
 
 finally you must close the connection to HBase with
