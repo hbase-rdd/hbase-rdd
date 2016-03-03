@@ -39,17 +39,17 @@ trait HBaseUtils {
     /**
      * Checks if table exists, and requires that it contains the desired column family
      *
-     * @param table name of the table
+     * @param tableName name of the table
      * @param family name of the column family
      *
      * @return true if table exists, false otherwise
      */
-    def tableExists(table: String, family: String): Boolean = {
+    def tableExists(tableName: String, family: String): Boolean = {
       val admin = connection.getAdmin
-      val tableName = TableName.valueOf(table)
-      if (admin.tableExists(tableName)) {
-        val families = admin.getTableDescriptor(tableName).getFamiliesKeys
-        require(families.contains(family.getBytes), s"Table [$tableName] exists but column family [$family] is missing")
+      val table = TableName.valueOf(tableName)
+      if (admin.tableExists(table)) {
+        val families = admin.getTableDescriptor(table).getFamiliesKeys
+        require(families.contains(family.getBytes), s"Table [$table] exists but column family [$family] is missing")
         true
       } else false
     }
@@ -57,18 +57,18 @@ trait HBaseUtils {
     /**
      * Checks if table exists, and requires that it contains the desired column families
      *
-     * @param table name of table
+     * @param tableName name of table
      * @param families set of column families
      *
      * @return true if table exists, false otherwise
      */
-    def tableExists(table: String, families: Set[String]): Boolean = {
+    def tableExists(tableName: String, families: Set[String]): Boolean = {
       val admin = connection.getAdmin
-      val tableName = TableName.valueOf(table)
-      if (admin.tableExists(tableName)) {
-        val tfamilies = admin.getTableDescriptor(tableName).getFamiliesKeys
+      val table = TableName.valueOf(tableName)
+      if (admin.tableExists(table)) {
+        val tfamilies = admin.getTableDescriptor(table).getFamiliesKeys
         for (family <- families)
-          require(tfamilies.contains(family.getBytes), s"Table [$tableName] exists but column family [$family] is missing")
+          require(tfamilies.contains(family.getBytes), s"Table [$table] exists but column family [$family] is missing")
         true
       } else false
     }
@@ -76,26 +76,25 @@ trait HBaseUtils {
     /**
      * Takes a snapshot of the table, the snapshot's name has format "tableName_yyyyMMddHHmmss"
      *
-     * @param table name of table
+     * @param tableName name of table
      */
-    def snapshot(table: String): Admin = {
+    def snapshot(tableName: String): Admin = {
       val sdf = new SimpleDateFormat("yyyyMMddHHmmss")
       val suffix = sdf.format(Calendar.getInstance().getTime)
-      snapshot(table, s"${table}_$suffix")
+      snapshot(tableName, s"${tableName}_$suffix")
       this
     }
 
     /**
      * Takes a snapshot of the table
      *
-     * @param table name of table
+     * @param tableName name of table
      * @param snapshotName name of snapshot
      */
-    def snapshot(table: String, snapshotName: String): Admin = {
+    def snapshot(tableName: String, snapshotName: String): Admin = {
       val admin = connection.getAdmin
-      val tableDescriptor = new HTableDescriptor(TableName.valueOf(table))
-      val tName = tableDescriptor.getTableName
-      admin.snapshot(snapshotName, tName)
+      val tableDescriptor = new HTableDescriptor(TableName.valueOf(tableName))
+      admin.snapshot(snapshotName, tableDescriptor.getTableName)
       this
     }
 
@@ -124,6 +123,16 @@ trait HBaseUtils {
     }
 
     /**
+      * Creates a table (if it doesn't exist already) with one or more column families
+      * and made of one or more regions
+      *
+      * @param tableName name of table
+      * @param families set of column families
+      */
+    def createTable(tableName: String, families: Set[String]): Admin =
+      createTable(tableName, families, Seq.empty)
+
+    /**
      * Creates a table (if it doesn't exist already) with one or more column families
      *
      * @param tableName name of table
@@ -141,6 +150,46 @@ trait HBaseUtils {
      */
     def createTable(tableName: String, family: String, splitKeys: Seq[String]): Admin =
       createTable(tableName, Set(family), splitKeys)
+
+    /**
+      * Disables a table
+      *
+      * @param tableName name of table
+      */
+    def disableTable(tableName: String): Admin = {
+      val admin = connection.getAdmin
+      val table = TableName.valueOf(tableName)
+      if (admin.tableExists(table))
+        admin.disableTable(table)
+      this
+    }
+
+    /**
+      * Deletes a table
+      *
+      * @param tableName name of table
+      */
+    def deleteTable(tableName: String): Admin = {
+      val admin = connection.getAdmin
+      val table = TableName.valueOf(tableName)
+      if (admin.tableExists(table))
+        admin.deleteTable(table)
+      this
+    }
+
+    /**
+      * Truncates a table
+      *
+      * @param tableName name of table
+      * @param preserveSplits true if region splits should be preserved
+      */
+    def truncateTable(tableName: String, preserveSplits: Boolean): Admin = {
+      val admin = connection.getAdmin
+      val table = TableName.valueOf(tableName)
+      if (admin.tableExists(table))
+        admin.truncateTable(table, preserveSplits)
+      this
+    }
   }
 
   /**
