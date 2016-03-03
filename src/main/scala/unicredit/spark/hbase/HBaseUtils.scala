@@ -57,8 +57,8 @@ trait HBaseUtils {
     /**
      * Checks if table exists, and requires that it contains the desired column families
      *
-     * @param table name of the table
-     * @param families name of the column families
+     * @param table name of table
+     * @param families set of column families
      *
      * @return true if table exists, false otherwise
      */
@@ -76,7 +76,7 @@ trait HBaseUtils {
     /**
      * Takes a snapshot of the table, the snapshot's name has format "tableName_yyyyMMddHHmmss"
      *
-     * @param table name of the table
+     * @param table name of table
      */
     def snapshot(table: String): Admin = {
       val sdf = new SimpleDateFormat("yyyyMMddHHmmss")
@@ -88,8 +88,8 @@ trait HBaseUtils {
     /**
      * Takes a snapshot of the table
      *
-     * @param table name of the table
-     * @param snapshotName name of the snapshot
+     * @param table name of table
+     * @param snapshotName name of snapshot
      */
     def snapshot(table: String, snapshotName: String): Admin = {
       val admin = connection.getAdmin
@@ -103,11 +103,11 @@ trait HBaseUtils {
      * Creates a table (if it doesn't exist already) with one or more column families
      * and made of one or more regions
      *
-     * @param tableName name of the table
-     * @param families list of column families
+     * @param tableName name of table
+     * @param families set of column families
      * @param splitKeys ordered list of keys that defines region splits
      */
-    def createTable(tableName: String, families: Seq[String], splitKeys: Seq[String]): Admin = {
+    def createTable(tableName: String, families: Set[String], splitKeys: Seq[String]): Admin = {
       val admin = connection.getAdmin
       val table = TableName.valueOf(tableName)
       if (!admin.isTableAvailable(table)) {
@@ -126,21 +126,21 @@ trait HBaseUtils {
     /**
      * Creates a table (if it doesn't exist already) with one or more column families
      *
-     * @param tableName name of the table
+     * @param tableName name of table
      * @param families list of one or more column families
      */
     def createTable(tableName: String, families: String*): Admin =
-      createTable(tableName, families, Seq.empty)
+      createTable(tableName, families.toSet, Seq.empty)
 
     /**
      * Creates a table (if it doesn't exist already) with a column family and made of one or more regions
      *
-     * @param tableName name of the table
-     * @param family name of the column family
+     * @param tableName name of table
+     * @param family name of column family
      * @param splitKeys ordered list of keys that defines region splits
      */
     def createTable(tableName: String, family: String, splitKeys: Seq[String]): Admin =
-      createTable(tableName, Seq(family), splitKeys)
+      createTable(tableName, Set(family), splitKeys)
   }
 
   /**
