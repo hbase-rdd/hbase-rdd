@@ -211,9 +211,9 @@ or, if you want to delete a fixed set of columns of one column family, or whole 
 
     val table = "t1"
     val cf = "cf1"
-    val headers: Seq[String] = ...
+    val headers: Set[String] = ...
     val rdd: RDD[String] = ...
-    rdd.toHBase(table, cf, headers)
+    rdd.deleteHBase(table, cf, headers)
 
 or
 
