@@ -8,7 +8,7 @@ organization := "eu.unicredit"
 
 version := "0.7.1"
 
-scalaVersion := "2.10.6"
+crossScalaVersions := Seq("2.10.6", "2.11.8")
 
 scalacOptions ++= Seq(
   "-deprecation",
