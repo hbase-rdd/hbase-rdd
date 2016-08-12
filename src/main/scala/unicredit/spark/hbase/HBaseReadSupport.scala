@@ -37,7 +37,7 @@ trait HBaseReadSupport {
 }
 
 final class HBaseSC(@transient sc: SparkContext) extends Serializable {
-  private def extract[A, B](data: Map[String, Set[String]], result: Result, read: Cell => B) =
+  private def extract[A](data: Map[String, Set[String]], result: Result, read: Cell => A) =
     data map {
       case (cf, columns) =>
         val content = columns flatMap { column =>
@@ -51,7 +51,7 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
         cf -> content
     }
 
-  private def extractRow[A, B](data: Set[String], result: Result, read: Cell => B) =
+  private def extractRow[A](data: Set[String], result: Result, read: Cell => A) =
     result.listCells groupBy { cell =>
       new String(CellUtil.cloneFamily(cell))
     } filterKeys data.contains map {
