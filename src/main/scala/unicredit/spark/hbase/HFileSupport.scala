@@ -63,7 +63,7 @@ trait HFileSupport {
 private[hbase] object HFileMethods {
 
   type CellKey = (Array[Byte], Array[Byte]) // (key, qualifier)
-  type CellKeyTS = (CellKey, Array[Byte]) // (CellKey, timestamp)
+  type CellKeyTS = (CellKey, Long) // (CellKey, timestamp)
 
   type GetCellKey[C, A, V] = (CellKey, A) => (C, V)
   type KeyValueWrapper[C, V] = (C, V) => (ImmutableBytesWritable, KeyValue)
@@ -71,13 +71,13 @@ private[hbase] object HFileMethods {
 
   // GetCellKey
   def gc[A](c: CellKey, v: A) = (c, v)
-  def gc[A](c: CellKey, v: (A, Long)) = ((c, Bytes.toBytes(v._2)), v._1)
+  def gc[A](c: CellKey, v: (A, Long)) = ((c, v._2), v._1)
 
   // KeyValueWrapperF
   def kvf[A](f: Array[Byte])(c: CellKey, v: A)(implicit writer: Writes[A]) =
     (new ImmutableBytesWritable(c._1), new KeyValue(c._1, f, c._2, writer.write(v)))
   def kvft[A](f: Array[Byte])(c: CellKeyTS, v: A)(implicit writer: Writes[A]) =
-    (new ImmutableBytesWritable(c._1._1), new KeyValue(c._1._1, f, c._1._2, Bytes.toLong(c._2), writer.write(v)))
+    (new ImmutableBytesWritable(c._1._1), new KeyValue(c._1._1, f, c._1._2, c._2, writer.write(v)))
 
   class CellKeyOrdering extends Ordering[CellKey] {
     override def compare(a: CellKey, b: CellKey) = {
@@ -99,10 +99,8 @@ private[hbase] object HFileMethods {
       if (ord != 0) ord
       else {
         // see org.apache.hadoop.hbase.KeyValue.KVComparator.compareTimestamps(long, long)
-        val al = Bytes.toLong(at)
-        val bl = Bytes.toLong(bt)
-        if (al < bl) 1
-        else if (al > bl) -1
+        if (at < bt) 1
+        else if (at > bt) -1
         else 0
       }
     }
