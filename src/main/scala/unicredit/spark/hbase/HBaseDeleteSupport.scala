@@ -29,58 +29,59 @@ import unicredit.spark.hbase.HBaseDeleteMethods._
  */
 trait HBaseDeleteSupport {
 
-  implicit def deleteHBaseRDDKey(rdd: RDD[String]): HBaseDeleteRDDKey =
-    new HBaseDeleteRDDKey(rdd, del)
+  implicit def deleteHBaseRDDKey[K: Writes, Q: Writes](rdd: RDD[K]): HBaseDeleteRDDKey[K, Q] =
+    new HBaseDeleteRDDKey(rdd, del[Q])
 
-  implicit def deleteHBaseRDDSimple(rdd: RDD[(String, Set[String])]): HBaseDeleteRDDSimple[String] =
-    new HBaseDeleteRDDSimple(rdd, del)
+  implicit def deleteHBaseRDDSimple[K: Writes, Q: Writes](rdd: RDD[(K, Set[Q])]): HBaseDeleteRDDSimple[K, Q] =
+    new HBaseDeleteRDDSimple(rdd, del[Q])
 
-  implicit def deleteHBaseRDDSimpleT(rdd: RDD[(String, Set[(String, Long)])]): HBaseDeleteRDDSimple[(String, Long)] =
-    new HBaseDeleteRDDSimple(rdd, delT)
+  implicit def deleteHBaseRDDSimpleT[K: Writes, Q: Writes](rdd: RDD[(K, Set[(Q, Long)])]): HBaseDeleteRDDSimple[K, (Q, Long)] =
+    new HBaseDeleteRDDSimple(rdd, delT[Q])
 
-  implicit def deleteHBaseRDD(rdd: RDD[(String, Map[String, Set[String]])]): HBaseDeleteRDD[String] =
-    new HBaseDeleteRDD(rdd, del)
+  implicit def deleteHBaseRDD[K: Writes, Q: Writes](rdd: RDD[(K, Map[String, Set[Q]])]): HBaseDeleteRDD[K, Q] =
+    new HBaseDeleteRDD(rdd, del[Q])
 
-  implicit def deleteHBaseRDDT(rdd: RDD[(String, Map[String, Set[(String, Long)]])]): HBaseDeleteRDD[(String, Long)] =
-    new HBaseDeleteRDD(rdd, delT)
+  implicit def deleteHBaseRDDT[K: Writes, Q: Writes](rdd: RDD[(K, Map[String, Set[(Q, Long)]])]): HBaseDeleteRDD[K, (Q, Long)] =
+    new HBaseDeleteRDD(rdd, delT[Q])
 }
 
 private[hbase] object HBaseDeleteMethods {
-  type Deleter[A] = (Delete, Array[Byte], A) => Delete
+  type Deleter[Q] = (Delete, Array[Byte], Q) => Delete
 
   // Delete
-  def del(delete: Delete, cf: Array[Byte], q: String) = delete.addColumns(cf, q)
-  def delT(delete: Delete, cf: Array[Byte], qt: (String, Long)) = delete.addColumn(cf, qt._1, qt._2)
+  def del[Q](delete: Delete, cf: Array[Byte], q: Q)(implicit wq: Writes[Q]) = delete.addColumns(cf, wq.write(q))
+  def delT[Q](delete: Delete, cf: Array[Byte], qt: (Q, Long))(implicit wq: Writes[Q]) = delete.addColumn(cf, wq.write(qt._1), qt._2)
 }
 
-sealed abstract class HBaseDeleteHelpers[A] {
-  protected def convert(id: String, values: Map[String, Set[A]], del: Deleter[A]) = {
-    val d = new Delete(id)
+sealed abstract class HBaseDeleteHelpers[K, Q] {
+  protected def convert(id: K, values: Map[String, Set[Q]], del: Deleter[Q])(implicit wk: Writes[K], ws: Writes[String]) = {
+    val d = new Delete(wk.write(id))
     var empty = true
     for {
       (family, contents) <- values
+      fb = ws.write(family)
       content <- contents
     } {
       empty = false
-      del(d, family, content)
+      del(d, fb, content)
     }
 
     if (empty) None else Some(new ImmutableBytesWritable, d)
   }
 
-  protected def convert(id: String, families: Set[String]) = {
-    val d = new Delete(id)
-    for (family <- families) d.addFamily(family)
+  protected def convert(id: K, families: Set[String])(implicit wk: Writes[K], ws: Writes[String]) = {
+    val d = new Delete(wk.write(id))
+    for (family <- families) d.addFamily(ws.write(family))
     Some(new ImmutableBytesWritable, d)
   }
 
-  protected def convert(id: String) = {
-    val d = new Delete(id)
+  protected def convert(id: K)(implicit wk: Writes[K]) = {
+    val d = new Delete(wk.write(id))
     Some(new ImmutableBytesWritable, d)
   }
 }
 
-final class HBaseDeleteRDDKey(val rdd: RDD[String], val del: Deleter[String]) extends HBaseDeleteHelpers[String] with Serializable {
+final class HBaseDeleteRDDKey[K: Writes, Q: Writes](val rdd: RDD[K], val del: Deleter[Q]) extends HBaseDeleteHelpers[K, Q] with Serializable {
 
   /**
    * Delete rows specified by rowkeys of the underlying RDD from HBase.
@@ -113,7 +114,7 @@ final class HBaseDeleteRDDKey(val rdd: RDD[String], val del: Deleter[String]) ex
    *
    * The RDD is assumed to be an instance of `RDD[String]` of rowkeys.
    */
-  def deleteHBase(table: String, family: String, columns: Set[String])(implicit config: HBaseConfig) = {
+  def deleteHBase(table: String, family: String, columns: Set[Q])(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
 
@@ -127,7 +128,7 @@ final class HBaseDeleteRDDKey(val rdd: RDD[String], val del: Deleter[String]) ex
    *
    * The RDD is assumed to be an instance of `RDD[String]` of rowkeys.
    */
-  def deleteHBase(table: String, qualifiers: Map[String, Set[String]])(implicit config: HBaseConfig) = {
+  def deleteHBase(table: String, qualifiers: Map[String, Set[Q]])(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
 
@@ -135,7 +136,7 @@ final class HBaseDeleteRDDKey(val rdd: RDD[String], val del: Deleter[String]) ex
   }
 }
 
-final class HBaseDeleteRDDSimple[A](val rdd: RDD[(String, Set[A])], val del: Deleter[A]) extends HBaseDeleteHelpers[A] with Serializable {
+final class HBaseDeleteRDDSimple[K: Writes, Q](val rdd: RDD[(K, Set[Q])], val del: Deleter[Q]) extends HBaseDeleteHelpers[K, Q] with Serializable {
 
   /**
    * Delete columns of the underlying RDD from HBase.
@@ -156,7 +157,7 @@ final class HBaseDeleteRDDSimple[A](val rdd: RDD[(String, Set[A])], val del: Del
   }
 }
 
-final class HBaseDeleteRDD[A](val rdd: RDD[(String, Map[String, Set[A]])], val del: Deleter[A]) extends HBaseDeleteHelpers[A] with Serializable {
+final class HBaseDeleteRDD[K: Writes, Q](val rdd: RDD[(K, Map[String, Set[Q]])], val del: Deleter[Q]) extends HBaseDeleteHelpers[K, Q] with Serializable {
   /**
    * Delete columns of the underlying RDD from HBase.
    *

@@ -40,44 +40,44 @@ trait HFileSupport {
   implicit lazy val cellKeyOrdering = new CellKeyOrdering
   implicit lazy val cellKeyTSOrdering = new CellKeyTSOrdering
 
-  implicit def toHFileRDDSimple[A: ClassTag](rdd: RDD[(String, Map[String, A])])(implicit writer: Writes[A]): HFileRDDSimple[CellKey, A, A] =
-    new HFileRDDSimple[CellKey, A, A](rdd, gc[A], kvf[A])
+  implicit def toHFileRDDSimple[K: Writes, Q: Writes, A: ClassTag](rdd: RDD[(K, Map[Q, A])])(implicit writer: Writes[A]): HFileRDDSimple[K, Q, CellKey, A, A] =
+    new HFileRDDSimple[K, Q, CellKey, A, A](rdd, gc[A], kvf[A])
 
-  implicit def toHFileRDDSimpleTS[A: ClassTag](rdd: RDD[(String, Map[String, (A, Long)])])(implicit writer: Writes[A]): HFileRDDSimple[CellKeyTS, (A, Long), A] =
-    new HFileRDDSimple[CellKeyTS, (A, Long), A](rdd, gc[A], kvft[A])
+  implicit def toHFileRDDSimpleTS[K: Writes, Q: Writes, A: ClassTag](rdd: RDD[(K, Map[Q, (A, Long)])])(implicit writer: Writes[A]): HFileRDDSimple[K, Q, CellKeyTS, (A, Long), A] =
+    new HFileRDDSimple[K, Q, CellKeyTS, (A, Long), A](rdd, gc[A], kvft[A])
 
-  implicit def toHFileRDDFixed[A: ClassTag](rdd: RDD[(String, Seq[A])])(implicit writer: Writes[A]): HFileRDDFixed[CellKey, A, A] =
-    new HFileRDDFixed[CellKey, A, A](rdd, gc[A], kvf[A])
+  implicit def toHFileRDDFixed[K: Writes, A: ClassTag](rdd: RDD[(K, Seq[A])])(implicit writer: Writes[A]): HFileRDDFixed[K, CellKey, A, A] =
+    new HFileRDDFixed[K, CellKey, A, A](rdd, gc[A], kvf[A])
 
-  implicit def toHFileRDDFixedTS[A: ClassTag](rdd: RDD[(String, Seq[(A, Long)])])(implicit writer: Writes[A]): HFileRDDFixed[CellKeyTS, (A, Long), A] =
-    new HFileRDDFixed[CellKeyTS, (A, Long), A](rdd, gc[A], kvft[A])
+  implicit def toHFileRDDFixedTS[K: Writes, A: ClassTag](rdd: RDD[(K, Seq[(A, Long)])])(implicit writer: Writes[A]): HFileRDDFixed[K, CellKeyTS, (A, Long), A] =
+    new HFileRDDFixed[K, CellKeyTS, (A, Long), A](rdd, gc[A], kvft[A])
 
-  implicit def toHFileRDD[A: ClassTag](rdd: RDD[(String, Map[String, Map[String, A]])])(implicit writer: Writes[A]): HFileRDD[CellKey, A, A] =
-    new HFileRDD[CellKey, A, A](rdd, gc[A], kvf[A])
+  implicit def toHFileRDD[K: Writes, Q: Writes, A: ClassTag](rdd: RDD[(K, Map[String, Map[Q, A]])])(implicit writer: Writes[A]): HFileRDD[K, Q, CellKey, A, A] =
+    new HFileRDD[K, Q, CellKey, A, A](rdd, gc[A], kvf[A])
 
-  implicit def toHFileRDDTS[A: ClassTag](rdd: RDD[(String, Map[String, Map[String, (A, Long)]])])(implicit writer: Writes[A]): HFileRDD[CellKeyTS, (A, Long), A] =
-    new HFileRDD[CellKeyTS, (A, Long), A](rdd, gc[A], kvft[A])
+  implicit def toHFileRDDTS[K: Writes, Q: Writes, A: ClassTag](rdd: RDD[(K, Map[String, Map[Q, (A, Long)]])])(implicit writer: Writes[A]): HFileRDD[K, Q, CellKeyTS, (A, Long), A] =
+    new HFileRDD[K, Q, CellKeyTS, (A, Long), A](rdd, gc[A], kvft[A])
 
 }
 
 private[hbase] object HFileMethods {
 
   type CellKey = (Array[Byte], Array[Byte]) // (key, qualifier)
-  type CellKeyTS = (CellKey, Array[Byte]) // (CellKey, timestamp)
+  type CellKeyTS = (CellKey, Long) // (CellKey, timestamp)
 
   type GetCellKey[C, A, V] = (CellKey, A) => (C, V)
   type KeyValueWrapper[C, V] = (C, V) => (ImmutableBytesWritable, KeyValue)
   type KeyValueWrapperF[C, V] = (Array[Byte]) => KeyValueWrapper[C, V]
 
   // GetCellKey
-  def gc[A](c: CellKey, v: A) = (c, v)
-  def gc[A](c: CellKey, v: (A, Long)) = ((c, Bytes.toBytes(v._2)), v._1)
+  def gc[V](c: CellKey, v: V) = (c, v)
+  def gc[V](c: CellKey, v: (V, Long)) = ((c, v._2), v._1)
 
   // KeyValueWrapperF
-  def kvf[A](f: Array[Byte])(c: CellKey, v: A)(implicit writer: Writes[A]) =
-    (new ImmutableBytesWritable(c._1), new KeyValue(c._1, f, c._2, writer.write(v)))
-  def kvft[A](f: Array[Byte])(c: CellKeyTS, v: A)(implicit writer: Writes[A]) =
-    (new ImmutableBytesWritable(c._1._1), new KeyValue(c._1._1, f, c._1._2, Bytes.toLong(c._2), writer.write(v)))
+  def kvf[V](f: Array[Byte])(c: CellKey, v: V)(implicit wv: Writes[V]) =
+    (new ImmutableBytesWritable(c._1), new KeyValue(c._1, f, c._2, wv.write(v)))
+  def kvft[V](f: Array[Byte])(c: CellKeyTS, v: V)(implicit wv: Writes[V]) =
+    (new ImmutableBytesWritable(c._1._1), new KeyValue(c._1._1, f, c._1._2, c._2, wv.write(v)))
 
   class CellKeyOrdering extends Ordering[CellKey] {
     override def compare(a: CellKey, b: CellKey) = {
@@ -99,10 +99,8 @@ private[hbase] object HFileMethods {
       if (ord != 0) ord
       else {
         // see org.apache.hadoop.hbase.KeyValue.KVComparator.compareTimestamps(long, long)
-        val al = Bytes.toLong(at)
-        val bl = Bytes.toLong(bt)
-        if (al < bl) 1
-        else if (al > bl) -1
+        if (at < bt) 1
+        else if (at > bt) -1
         else 0
       }
     }
@@ -214,7 +212,7 @@ sealed abstract class HFileRDDHelper extends Serializable {
   }
 }
 
-final class HFileRDDSimple[C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(String, Map[String, A])], ck: GetCellKey[C, A, V], kvf: KeyValueWrapperF[C, V]) extends HFileRDDHelper {
+final class HFileRDDSimple[K: Writes, Q: Writes, C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(K, Map[Q, A])], ck: GetCellKey[C, A, V], kvf: KeyValueWrapperF[C, V]) extends HFileRDDHelper {
   /**
    * Load the underlying RDD to HBase, using HFiles.
    *
@@ -227,6 +225,9 @@ final class HFileRDDSimple[C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(S
    */
   def toHBaseBulk(tableNameStr: String, family: String, numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
     require(numFilesPerRegionPerFamily > 0)
+    val wk = implicitly[Writes[K]]
+    val wq = implicitly[Writes[Q]]
+    val ws = implicitly[Writes[String]]
 
     val conf = config.get
     val tableName = TableName.valueOf(tableNameStr)
@@ -238,15 +239,15 @@ final class HFileRDDSimple[C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(S
 
     val rdd = mapRdd.flatMap {
       case (k, m) =>
-        val keyBytes = Bytes.toBytes(k)
-        m map { case (h, v) => ck((keyBytes, h), v) }
+        val keyBytes = wk.write(k)
+        m map { case (h, v) => ck((keyBytes, wq.write(h)), v) }
     }
 
-    saveAsHFile(getPartitionedRdd(rdd, kvf(family), partitioner), table, regionLocator, connection)
+    saveAsHFile(getPartitionedRdd(rdd, kvf(ws.write(family)), partitioner), table, regionLocator, connection)
   }
 }
 
-final class HFileRDDFixed[C: ClassTag, A: ClassTag, V: ClassTag](seqRdd: RDD[(String, Seq[A])], ck: GetCellKey[C, A, V], kvf: KeyValueWrapperF[C, V]) extends HFileRDDHelper {
+final class HFileRDDFixed[K: Writes, C: ClassTag, A: ClassTag, V: ClassTag](seqRdd: RDD[(K, Seq[A])], ck: GetCellKey[C, A, V], kvf: KeyValueWrapperF[C, V]) extends HFileRDDHelper {
   /**
    * Load the underlying RDD to HBase, using HFiles.
    *
@@ -257,8 +258,11 @@ final class HFileRDDFixed[C: ClassTag, A: ClassTag, V: ClassTag](seqRdd: RDD[(St
    * where the first value is the rowkey and the second is a sequence of values to be
    * associated to column names in `headers`.
    */
-  def toHBaseBulk(tableNameStr: String, family: String, headers: Seq[String], numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
+  def toHBaseBulk[Q: Writes](tableNameStr: String, family: String, headers: Seq[Q], numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
     require(numFilesPerRegionPerFamily > 0)
+    val wk = implicitly[Writes[K]]
+    val wq = implicitly[Writes[Q]]
+    val ws = implicitly[Writes[String]]
 
     val conf = config.get
     val tableName = TableName.valueOf(tableNameStr)
@@ -267,20 +271,20 @@ final class HFileRDDFixed[C: ClassTag, A: ClassTag, V: ClassTag](seqRdd: RDD[(St
     val table = connection.getTable(tableName)
 
     val sc = seqRdd.context
-    val headersBytes = sc.broadcast(headers map Bytes.toBytes)
+    val headersBytes = sc.broadcast(headers map wq.write)
     val partitioner = getPartitioner(regionLocator, numFilesPerRegionPerFamily)
 
     val rdd = seqRdd.flatMap {
       case (k, v) =>
-        val keyBytes = Bytes.toBytes(k)
+        val keyBytes = wk.write(k)
         (headersBytes.value zip v) map { case (h, v) => ck((keyBytes, h), v) }
     }
 
-    saveAsHFile(getPartitionedRdd(rdd, kvf(family), partitioner), table, regionLocator, connection)
+    saveAsHFile(getPartitionedRdd(rdd, kvf(ws.write(family)), partitioner), table, regionLocator, connection)
   }
 }
 
-final class HFileRDD[C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(String, Map[String, Map[String, A]])], ck: GetCellKey[C, A, V], kv: KeyValueWrapperF[C, V]) extends HFileRDDHelper {
+final class HFileRDD[K: Writes, Q: Writes, C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(K, Map[String, Map[Q, A]])], ck: GetCellKey[C, A, V], kv: KeyValueWrapperF[C, V]) extends HFileRDDHelper {
   /**
    * Load the underlying RDD to HBase, using HFiles.
    *
@@ -290,6 +294,9 @@ final class HFileRDD[C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(String,
    */
   def toHBaseBulk(tableNameStr: String, numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
     require(numFilesPerRegionPerFamily > 0)
+    val wk = implicitly[Writes[K]]
+    val wq = implicitly[Writes[Q]]
+    val rs = implicitly[Reads[String]]
 
     val conf = config.get
     val tableName = TableName.valueOf(tableNameStr)
@@ -297,18 +304,19 @@ final class HFileRDD[C: ClassTag, A: ClassTag, V: ClassTag](mapRdd: RDD[(String,
     val regionLocator = connection.getRegionLocator(tableName)
     val table = connection.getTable(tableName)
 
-    val families = table.getTableDescriptor.getFamiliesKeys map Bytes.toString
+    val families = table.getTableDescriptor.getFamiliesKeys
     val partitioner = getPartitioner(regionLocator, numFilesPerRegionPerFamily)
 
     val rdds = for {
-      f <- families
+      fb <- families
+      f = rs.read(fb)
       rdd = mapRdd
-        .collect { case (k, m) if m.contains(f) => (Bytes.toBytes(k), m(f)) }
+        .collect { case (k, m) if m.contains(f) => (wk.write(k), m(f)) }
         .flatMap {
           case (k, m) =>
-            m map { case (h, v) => ck((k, h), v) }
+            m map { case (h, v) => ck((k, wq.write(h)), v) }
         }
-    } yield getPartitionedRdd(rdd, kv(f), partitioner)
+    } yield getPartitionedRdd(rdd, kv(fb), partitioner)
 
     saveAsHFile(rdds.reduce(_ ++ _), table, regionLocator, connection)
   }

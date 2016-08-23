@@ -1,13 +1,17 @@
 package unicredit.spark.hbase
 
 import org.apache.hadoop.hbase.HBaseTestingUtility
+import org.apache.hadoop.hbase.util.Bytes
 import org.apache.log4j.{Level, LogManager}
-import org.apache.spark.{SparkContext, SparkConf}
-import org.scalatest.{Suite, SuiteMixin, BeforeAndAfterAll}
+import org.apache.spark.{SparkConf, SparkContext}
+import org.scalatest.{BeforeAndAfterAll, Suite, SuiteMixin}
 
 trait MiniCluster extends SuiteMixin with BeforeAndAfterAll { this: Suite =>
 
   LogManager.getRootLogger.setLevel(Level.OFF)
+
+  implicit def stringToBytes(s: String): Array[Byte] = Bytes.toBytes(s)
+  implicit def arrayToBytes(a: Array[String]): Array[Array[Byte]] = a map Bytes.toBytes
 
   private val master = "local[4]"
   private val appName = "hbase-rdd_spark"

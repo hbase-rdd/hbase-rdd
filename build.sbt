@@ -6,7 +6,7 @@ name := "hbase-rdd"
 
 organization := "eu.unicredit"
 
-version := "0.7.1"
+version := "0.8.0-generics"
 
 crossScalaVersions := Seq("2.10.6", "2.11.8")
 

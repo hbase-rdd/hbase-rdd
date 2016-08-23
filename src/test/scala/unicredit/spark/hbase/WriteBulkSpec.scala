@@ -16,14 +16,18 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
     sc.stop()
   }
 
+  val w = implicitly[Writes[Int]]
+
   def nextString = (1 to 10) map (_ => Random.nextPrintableChar()) mkString
 
   val numKeys = 1000
   val numCols = 10
   val numRegions = 4
 
-  val keys = Random.shuffle(0 to numKeys-1) map (i => f"row$i%03d")
-  val cols = ((1 to numCols) map (i => f"col$i%02d")).to[Seq] // must be a collection.Seq and not a collection.immutable.Seq
+  // due to this bug https://issues.scala-lang.org/browse/SI-6948
+  // we cannot write: Random.shuffle(0 until numKeys)
+  val keys = Random.shuffle(0 to numKeys-1)
+  val cols = (1 to numCols).to[Seq] // must be a collection.Seq and not a collection.immutable.Seq
   val family = "cf"
   val families = Seq("cf1", "cf2")
 
@@ -37,7 +41,7 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
   val table_prefix = "test_bulk"
   var table_counter = 0
 
-  var splitKeys: Array[String] = _
+  var splitKeys: Array[Int] = _
 
   "computeSplits" should "create an array of (number of regions - 1) split keys" in {
     val rddKeys = sc.parallelize(keys)
@@ -49,45 +53,45 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
   "A HFileRDD" should "write to a Table with 1 HFile per region" in {
     table_counter += 1
     val table_bulk = table_prefix + s"_$table_counter"
-    val htable = htu.createTable(table_bulk, family, splitKeys)
+    val htable = htu.createTable(table_bulk, family, splitKeys map w.write)
 
     sc.parallelize(source)
       .toHBaseBulk(table_bulk, family, cols)
 
-    checkWithOneColumnFamily(htable, family, cols, source, (v, _) => v)
+    checkWithOneColumnFamily(htable, family, cols, source, checkValue)
     htu.deleteTable(table_bulk)
   }
 
   it should "write to a Table with 2 HFiles per region" in {
     table_counter += 1
     val table_bulk = table_prefix + s"_$table_counter"
-    val htable = htu.createTable(table_bulk, family, splitKeys)
+    val htable = htu.createTable(table_bulk, family, splitKeys map w.write)
 
     sc.parallelize(source)
       .toHBaseBulk(table_bulk, family, cols, 2)
 
-    checkWithOneColumnFamily(htable, family, cols, source, (v, _) => v)
+    checkWithOneColumnFamily(htable, family, cols, source, checkValue)
     htu.deleteTable(table_bulk)
   }
 
   it should "write to a Table with timestamps" in {
     table_counter += 1
     val table_bulk = table_prefix + s"_$table_counter"
-    val htable = htu.createTable(table_bulk, family, splitKeys)
+    val htable = htu.createTable(table_bulk, family, splitKeys map w.write)
 
     val source_ts = source map { case (k, colm) => (k, colm map ((_, 1L))) }
 
     sc.parallelize(source_ts)
       .toHBaseBulk(table_bulk, family, cols)
 
-    checkWithOneColumnFamily(htable, family, cols, source_ts, (v, ts) => (v, ts))
+    checkWithOneColumnFamily(htable, family, cols, source_ts, checkValueAndTimestamp)
     htu.deleteTable(table_bulk)
   }
 
   it should "write to a Table with duplicated cells" in {
     table_counter += 1
     val table_bulk = table_prefix + s"_$table_counter"
-    val htable = htu.createTable(table_bulk, family, splitKeys)
+    val htable = htu.createTable(table_bulk, family, splitKeys map w.write)
 
     val row = source(Random.nextInt(numKeys))
     val source_double_row = row +: source
@@ -95,7 +99,7 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
     sc.parallelize(source_double_row)
       .toHBaseBulk(table_bulk, family, cols)
 
-    checkWithOneColumnFamily(htable, family, cols, source_double_row, (v, _) => v)
+    checkWithOneColumnFamily(htable, family, cols, source_double_row, checkValue)
     htu.deleteTable(table_bulk)
   }
 
@@ -123,7 +127,7 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
     sc.parallelize(source_multi_cf)
       .toHBaseBulk(table_bulk)
 
-    checkWithAllColumnFamilies(htable, source_multi_cf, (v, _) => v)
+    checkWithAllColumnFamilies(htable, source_multi_cf, checkValue)
     htu.deleteTable(table_bulk)
   }
 

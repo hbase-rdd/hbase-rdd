@@ -15,15 +15,14 @@
 
 package unicredit.spark.hbase
 
-import org.apache.spark.rdd.RDD
-
 import scala.collection.JavaConversions._
+
+import org.apache.spark.rdd.RDD
 
 import org.apache.hadoop.hbase.{ Cell, CellUtil }
 import org.apache.hadoop.hbase.client.{ Result, Scan }
 import org.apache.hadoop.hbase.mapreduce.{ TableInputFormat, IdentityTableMapper, TableMapReduceUtil }
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
-import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.filter.Filter
 import org.apache.hadoop.mapreduce.Job
 import org.apache.spark._
@@ -37,12 +36,13 @@ trait HBaseReadSupport {
 }
 
 final class HBaseSC(@transient sc: SparkContext) extends Serializable {
-  private def extract[A](data: Map[String, Set[String]], result: Result, read: Cell => A) =
+  private def extract[Q, V](data: Map[String, Set[Q]], result: Result, read: Cell => V)(implicit wq: Writes[Q]) = {
+    val ws = implicitly[Writes[String]]
     data map {
       case (cf, columns) =>
         val content = columns flatMap { column =>
           Option {
-            result.getColumnLatestCell(cf, column)
+            result.getColumnLatestCell(ws.write(cf), wq.write(column))
           } map { cell =>
             column -> read(cell)
           }
@@ -50,29 +50,32 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
 
         cf -> content
     }
+  }
 
-  private def extractRow[A](data: Set[String], result: Result, read: Cell => A) =
+  private def extractRow[Q, V](data: Set[String], result: Result, read: Cell => V)(implicit rq: Reads[Q]) = {
+    val rs = implicitly[Reads[String]]
     result.listCells groupBy { cell =>
-      new String(CellUtil.cloneFamily(cell))
+      rs.read(CellUtil.cloneFamily(cell))
     } filterKeys data.contains map {
       // We cannot use mapValues here, because it returns a MapLike, which is not serializable,
       // instead we need a (serializable) Map (see https://issues.scala-lang.org/browse/SI-7005)
       case (k, cells) =>
         (k, cells map { cell =>
-          val column = new String(CellUtil.cloneQualifier(cell))
+          val column = rq.read(CellUtil.cloneQualifier(cell))
           column -> read(cell)
         } toMap)
     }
-
-  private def read[A](cell: Cell)(implicit reader: Reads[A]) = {
-    val value = CellUtil.cloneValue(cell)
-    reader.read(value)
   }
 
-  private def readTS[A](cell: Cell)(implicit reader: Reads[A]) = {
+  private def read[V](cell: Cell)(implicit rv: Reads[V]) = {
+    val value = CellUtil.cloneValue(cell)
+    rv.read(value)
+  }
+
+  private def readTS[V](cell: Cell)(implicit rv: Reads[V]) = {
     val value = CellUtil.cloneValue(cell)
     val timestamp = cell.getTimestamp
-    (reader.read(value), timestamp)
+    (rv.read(value), timestamp)
   }
 
   private def makeConf(config: HBaseConfig, table: String, columns: Option[String] = None, scan: Scan = new Scan) = {
@@ -99,8 +102,12 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    * nested map which associates column family and column to
    * the value. Columns which are not found are omitted from the map.
    */
-  def hbase[A](table: String, data: Map[String, Set[String]])(implicit config: HBaseConfig, reader: Reads[A]): RDD[(String, Map[String, Map[String, A]])] =
+  def hbase[K: Reads, Q: Writes, V: Reads](table: String, data: Map[String, Set[Q]])(implicit config: HBaseConfig): RDD[(K, Map[String, Map[Q, V]])] =
     hbase(table, data, new Scan)
+  def hbase[K: Reads, V: Reads](table: String, data: Map[String, Set[String]])(implicit config: HBaseConfig): RDD[(K, Map[String, Map[String, V]])] =
+    hbase[K, String, V](table, data, new Scan)
+  def hbase[V: Reads](table: String, data: Map[String, Set[String]])(implicit config: HBaseConfig): RDD[(String, Map[String, Map[String, V]])] =
+    hbase[String, String, V](table, data, new Scan)
 
   /**
    * Provides an RDD of HBase rows. Here `data` is a map whose
@@ -108,8 +115,12 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    * the list of columns to be read from the family.
    * Accepts HBase filter as a parameter.
    */
-  def hbase[A](table: String, data: Map[String, Set[String]], filter: Filter)(implicit config: HBaseConfig, reader: Reads[A]): RDD[(String, Map[String, Map[String, A]])] =
+  def hbase[K: Reads, Q: Writes, V: Reads](table: String, data: Map[String, Set[Q]], filter: Filter)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[Q, V]])] =
     hbase(table, data, prepareScan(filter))
+  def hbase[K: Reads, V: Reads](table: String, data: Map[String, Set[String]], filter: Filter)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[String, V]])] =
+    hbase[K, String, V](table, data, prepareScan(filter))
+  def hbase[V: Reads](table: String, data: Map[String, Set[String]], filter: Filter)(implicit config: HBaseConfig): RDD[(String, Map[String, Map[String, V]])] =
+    hbase[String, String, V](table, data, prepareScan(filter))
 
   /**
    * Provides an RDD of HBase rows. Here `data` is a map whose
@@ -117,12 +128,17 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    * the list of columns to be read from the family.
    * Accepts custom HBase Scan instance
    */
-  def hbase[A](table: String, data: Map[String, Set[String]], scan: Scan)(implicit config: HBaseConfig, reader: Reads[A]) = {
+  def hbase[K: Reads, Q: Writes, V: Reads](table: String, data: Map[String, Set[Q]], scan: Scan)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[Q, V]])] = {
+    val rk = implicitly[Reads[K]]
     hbaseRaw(table, data, scan) map {
       case (key, row) =>
-        Bytes.toString(key.get) -> extract(data, row, read[A])
+        rk.read(key.get) -> extract(data, row, read[V])
     }
   }
+  def hbase[K: Reads, V: Reads](table: String, data: Map[String, Set[String]], scan: Scan)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[String, V]])] =
+    hbase[K, String, V](table, data, scan)
+  def hbase[V: Reads](table: String, data: Map[String, Set[String]], scan: Scan)(implicit config: HBaseConfig): RDD[(String, Map[String, Map[String, V]])] =
+    hbase[String, String, V](table, data, scan)
 
   /**
    * Provides an RDD of HBase rows. Here `data` is a map whose
@@ -134,8 +150,12 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    * nested map which associates column family and column to
    * the tuple (value, timestamp). Columns which are not found are omitted from the map.
    */
-  def hbaseTS[A](table: String, data: Map[String, Set[String]])(implicit config: HBaseConfig, reader: Reads[A]): RDD[(String, Map[String, Map[String, (A, Long)]])] =
+  def hbaseTS[K: Reads, Q: Writes, V: Reads](table: String, data: Map[String, Set[Q]])(implicit config: HBaseConfig): RDD[(K, Map[String, Map[Q, (V, Long)]])] =
     hbaseTS(table, data, new Scan)
+  def hbaseTS[K: Reads, V: Reads](table: String, data: Map[String, Set[String]])(implicit config: HBaseConfig): RDD[(K, Map[String, Map[String, (V, Long)]])] =
+    hbaseTS[K, String, V](table, data, new Scan)
+  def hbaseTS[V: Reads](table: String, data: Map[String, Set[String]])(implicit config: HBaseConfig): RDD[(String, Map[String, Map[String, (V, Long)]])] =
+    hbaseTS[String, String, V](table, data, new Scan)
 
   /**
    * Provides an RDD of HBase rows. Here `data` is a map whose
@@ -143,8 +163,12 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    * the list of columns to be read from the family.
    * Accepts HBase filter as a parameter.
    */
-  def hbaseTS[A](table: String, data: Map[String, Set[String]], filter: Filter)(implicit config: HBaseConfig, reader: Reads[A]): RDD[(String, Map[String, Map[String, (A, Long)]])] =
+  def hbaseTS[K: Reads, Q: Writes, V: Reads](table: String, data: Map[String, Set[Q]], filter: Filter)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[Q, (V, Long)]])] =
     hbaseTS(table, data, prepareScan(filter))
+  def hbaseTS[K: Reads, V: Reads](table: String, data: Map[String, Set[String]], filter: Filter)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[String, (V, Long)]])] =
+    hbaseTS[K, String, V](table, data, prepareScan(filter))
+  def hbaseTS[V: Reads](table: String, data: Map[String, Set[String]], filter: Filter)(implicit config: HBaseConfig): RDD[(String, Map[String, Map[String, (V, Long)]])] =
+    hbaseTS[String, String, V](table, data, prepareScan(filter))
 
   /**
    * Provides an RDD of HBase rows. Here `data` is a map whose
@@ -152,14 +176,19 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    * the list of columns to be read from the family.
    * Accepts custom HBase Scan instance
    */
-  def hbaseTS[A](table: String, data: Map[String, Set[String]], scan: Scan)(implicit config: HBaseConfig, reader: Reads[A]) = {
+  def hbaseTS[K: Reads, Q: Writes, V: Reads](table: String, data: Map[String, Set[Q]], scan: Scan)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[Q, (V, Long)]])] = {
+    val rk = implicitly[Reads[K]]
     hbaseRaw(table, data, scan) map {
       case (key, row) =>
-        Bytes.toString(key.get) -> extract(data, row, readTS[A])
+        rk.read(key.get) -> extract(data, row, readTS[V])
     }
   }
+  def hbaseTS[K: Reads, V: Reads](table: String, data: Map[String, Set[String]], scan: Scan)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[String, (V, Long)]])] =
+    hbaseTS[K, String, V](table, data, scan)
+  def hbaseTS[V: Reads](table: String, data: Map[String, Set[String]], scan: Scan)(implicit config: HBaseConfig): RDD[(String, Map[String, Map[String, (V, Long)]])] =
+    hbaseTS[String, String, V](table, data, scan)
 
-  protected def hbaseRaw[A](table: String, data: Map[String, Set[String]], scan: Scan)(implicit config: HBaseConfig) = {
+  protected def hbaseRaw[Q: Writes](table: String, data: Map[String, Set[Q]], scan: Scan)(implicit config: HBaseConfig) = {
     val columns = (for {
       (cf, cols) <- data
       col <- cols
@@ -178,28 +207,41 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    * nested map which associated column family and column to
    * the value.
    */
-  def hbase[A](table: String, data: Set[String])(implicit config: HBaseConfig, reader: Reads[A]): RDD[(String, Map[String, Map[String, A]])] =
+  def hbase[K: Reads, Q: Reads, V: Reads](table: String, data: Set[String])(implicit config: HBaseConfig): RDD[(K, Map[String, Map[Q, V]])] =
     hbase(table, data, new Scan)
+  def hbase[K: Reads, V: Reads](table: String, data: Set[String])(implicit config: HBaseConfig): RDD[(K, Map[String, Map[String, V]])] =
+    hbase[K, String, V](table, data, new Scan)
+  def hbase[V: Reads](table: String, data: Set[String])(implicit config: HBaseConfig): RDD[(String, Map[String, Map[String, V]])] =
+    hbase[String, String, V](table, data, new Scan)
 
   /**
    * Provides an RDD of HBase rows. Here `data` is a set of
    * column families, which are read in full.
    * Accepts HBase filter as a parameter.
    */
-  def hbase[A](table: String, data: Set[String], filter: Filter)(implicit config: HBaseConfig, reader: Reads[A]): RDD[(String, Map[String, Map[String, A]])] =
+  def hbase[K: Reads, Q: Reads, V: Reads](table: String, data: Set[String], filter: Filter)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[Q, V]])] =
     hbase(table, data, prepareScan(filter))
+  def hbase[K: Reads, V: Reads](table: String, data: Set[String], filter: Filter)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[String, V]])] =
+    hbase[K, String, V](table, data, prepareScan(filter))
+  def hbase[V: Reads](table: String, data: Set[String], filter: Filter)(implicit config: HBaseConfig): RDD[(String, Map[String, Map[String, V]])] =
+    hbase[String, String, V](table, data, prepareScan(filter))
 
   /**
    * Provides an RDD of HBase rows. Here `data` is a set of
    * column families, which are read in full.
    * Accepts custom HBase Scan instance
    */
-  def hbase[A](table: String, data: Set[String], scan: Scan)(implicit config: HBaseConfig, reader: Reads[A]) = {
+  def hbase[K: Reads, Q: Reads, V: Reads](table: String, data: Set[String], scan: Scan)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[Q, V]])] = {
+    val rk = implicitly[Reads[K]]
     hbaseRaw(table, data, scan) map {
       case (key, row) =>
-        Bytes.toString(key.get) -> extractRow(data, row, read[A])
+        rk.read(key.get) -> extractRow(data, row, read[V])
     }
   }
+  def hbase[K: Reads, V: Reads](table: String, data: Set[String], scan: Scan)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[String, V]])] =
+    hbase[K, String, V](table, data, scan)
+  def hbase[V: Reads](table: String, data: Set[String], scan: Scan)(implicit config: HBaseConfig): RDD[(String, Map[String, Map[String, V]])] =
+    hbase[String, String, V](table, data, scan)
 
   /**
    * Provides an RDD of HBase rows. Here `data` is a set of
@@ -210,30 +252,43 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    * nested map which associated column family and column to
    * the tuple (value, timestamp).
    */
-  def hbaseTS[A](table: String, data: Set[String])(implicit config: HBaseConfig, reader: Reads[A]): RDD[(String, Map[String, Map[String, (A, Long)]])] =
+  def hbaseTS[K: Reads, Q: Reads, V: Reads](table: String, data: Set[String])(implicit config: HBaseConfig): RDD[(K, Map[String, Map[Q, (V, Long)]])] =
     hbaseTS(table, data, new Scan)
+  def hbaseTS[K: Reads, V: Reads](table: String, data: Set[String])(implicit config: HBaseConfig): RDD[(K, Map[String, Map[String, (V, Long)]])] =
+    hbaseTS[K, String, V](table, data, new Scan)
+  def hbaseTS[V: Reads](table: String, data: Set[String])(implicit config: HBaseConfig): RDD[(String, Map[String, Map[String, (V, Long)]])] =
+    hbaseTS[String, String, V](table, data, new Scan)
 
   /**
    * Provides an RDD of HBase rows. Here `data` is a set of
    * column families, which are read in full.
    * Accepts HBase filter as a parameter.
    */
-  def hbaseTS[A](table: String, data: Set[String], filter: Filter)(implicit config: HBaseConfig, reader: Reads[A]): RDD[(String, Map[String, Map[String, (A, Long)]])] =
+  def hbaseTS[K: Reads, Q: Reads, V: Reads](table: String, data: Set[String], filter: Filter)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[Q, (V, Long)]])] =
     hbaseTS(table, data, prepareScan(filter))
+  def hbaseTS[K: Reads, V: Reads](table: String, data: Set[String], filter: Filter)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[String, (V, Long)]])] =
+    hbaseTS[K, String, V](table, data, prepareScan(filter))
+  def hbaseTS[V: Reads](table: String, data: Set[String], filter: Filter)(implicit config: HBaseConfig): RDD[(String, Map[String, Map[String, (V, Long)]])] =
+    hbaseTS[String, String, V](table, data, prepareScan(filter))
 
   /**
    * Provides an RDD of HBase rows. Here `data` is a set of
    * column families, which are read in full.
    * Accepts custom HBase Scan instance
    */
-  def hbaseTS[A](table: String, data: Set[String], scan: Scan)(implicit config: HBaseConfig, reader: Reads[A]) = {
+  def hbaseTS[K: Reads, Q: Reads, V: Reads](table: String, data: Set[String], scan: Scan)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[Q, (V, Long)]])] = {
+    val rk = implicitly[Reads[K]]
     hbaseRaw(table, data, scan) map {
       case (key, row) =>
-        Bytes.toString(key.get) -> extractRow(data, row, readTS[A])
+        rk.read(key.get) -> extractRow(data, row, readTS[V])
     }
   }
+  def hbaseTS[K: Reads, V: Reads](table: String, data: Set[String], scan: Scan)(implicit config: HBaseConfig): RDD[(K, Map[String, Map[String, (V, Long)]])] =
+    hbaseTS[K, String, V](table, data, scan)
+  def hbaseTS[V: Reads](table: String, data: Set[String], scan: Scan)(implicit config: HBaseConfig): RDD[(String, Map[String, Map[String, (V, Long)]])] =
+    hbaseTS[String, String, V](table, data, scan)
 
-  protected def hbaseRaw[A](table: String, data: Set[String], scan: Scan)(implicit config: HBaseConfig) = {
+  protected def hbaseRaw(table: String, data: Set[String], scan: Scan)(implicit config: HBaseConfig) = {
     val families = data mkString " "
 
     sc.newAPIHadoopRDD(makeConf(config, table, Some(families), scan), classOf[TableInputFormat],
@@ -250,17 +305,19 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
    *
    * The client can then use the full HBase API to process the result.
    */
-  def hbase(table: String, scan: Scan = new Scan)(implicit config: HBaseConfig) =
+  def hbase[K: Reads](table: String, scan: Scan = new Scan)(implicit config: HBaseConfig) = {
+    val rk = implicitly[Reads[K]]
     sc.newAPIHadoopRDD(makeConf(config, table, scan = scan), classOf[TableInputFormat],
       classOf[ImmutableBytesWritable], classOf[Result]) map {
-        case (key, row) =>
-          Bytes.toString(key.get) -> row
-      }
+      case (key, row) =>
+        rk.read(key.get) -> row
+    }
+  }
 
   /**
    * Provides an RDD of HBase rows, without interpreting the content
    * of the rows, with HBase filter support
    */
-  def hbase(table: String, filter: Filter)(implicit config: HBaseConfig): RDD[(String, Result)] = hbase(table, prepareScan(filter))
+  def hbase[K: Reads](table: String, filter: Filter)(implicit config: HBaseConfig): RDD[(K, Result)] = hbase(table, prepareScan(filter))
 
 }

@@ -2,25 +2,32 @@ package unicredit.spark.hbase
 
 import org.apache.hadoop.hbase.CellUtil
 import org.apache.hadoop.hbase.client.{Get, HTable}
-import org.apache.hadoop.hbase.util.Bytes
+
 import org.scalatest.{Matchers, Suite, SuiteMixin}
 
 import scala.collection.JavaConversions._
 
-trait Checkers extends SuiteMixin with Matchers { this: Suite =>
+trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWrites { this: Suite =>
+
+  def checkValue(v: String, ts: Long): Any = v
+  def checkValueAndTimestamp(v: String, ts: Long): Any = (v, ts)
+
   // one family
   // map of qualifiers -> values
-  def checkWithOneColumnFamily(t: HTable, cf: String, s: Seq[(String, Map[String, _])], dataToCheck: (String, Long) => Any) = {
+  def checkWithOneColumnFamily[K, Q, V](t: HTable, cf: String, s: Seq[(K, Map[Q, _])], dataToCheck: (V, Long) => Any)
+                                       (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]) = {
+    val cfb = ws.write(cf)
+
     for ((r, m) <- s) {
-      val get = new Get(r)
+      val get = new Get(wk.write(r))
       val result = t.get(get)
 
-      Bytes.toString(result.getRow) should === (r)
+      rk.read(result.getRow) should === (r)
 
       for {
         col <- m.keys
-        cell = result.getColumnLatestCell(cf, col)
-        value = Bytes.toString(CellUtil.cloneValue(cell))
+        cell = result.getColumnLatestCell(cfb, wq.write(col))
+        value = rv.read(CellUtil.cloneValue(cell))
         ts = cell.getTimestamp
       } dataToCheck(value, ts) should === (m(col))
     }
@@ -28,19 +35,22 @@ trait Checkers extends SuiteMixin with Matchers { this: Suite =>
 
   // one family
   // fixed columns
-  def checkWithOneColumnFamily(t: HTable, cf: String, cols: Seq[String], s: Seq[(String, Seq[_])], dataToCheck: (String, Long) => Any) = {
+  def checkWithOneColumnFamily[K, Q, V](t: HTable, cf: String, cols: Seq[Q], s: Seq[(K, Seq[_])], dataToCheck: (V, Long) => Any)
+                                       (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]) = {
+    val cfb = ws.write(cf)
+
     for ((r, vs) <- s) {
-      val get = new Get(r)
+      val get = new Get(wk.write(r))
       val result = t.get(get)
 
-      Bytes.toString(result.getRow) should === (r)
+      rk.read(result.getRow) should === (r)
 
       val data = cols zip vs
 
       for {
         (col, v) <- data
-        cell = result.getColumnLatestCell(cf, col)
-        value = Bytes.toString(CellUtil.cloneValue(cell))
+        cell = result.getColumnLatestCell(cfb, wq.write(col))
+        value = rv.read(CellUtil.cloneValue(cell))
         ts = cell.getTimestamp
       } dataToCheck(value, ts) should === (v)
     }
@@ -48,18 +58,20 @@ trait Checkers extends SuiteMixin with Matchers { this: Suite =>
 
   // many families
   // map of qualifiers -> values
-  def checkWithAllColumnFamilies(t: HTable, s: Seq[(String, Map[String, Map[String, _]])], dataToCheck: (String, Long) => Any) = {
+  def checkWithAllColumnFamilies[K, Q, V](t: HTable, s: Seq[(K, Map[String, Map[Q, _]])], dataToCheck: (V, Long) => Any)
+                                         (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]) = {
     for ((r, m) <- s) {
-      val get = new Get(r)
+      val get = new Get(wk.write(r))
       val result = t.get(get)
 
-      Bytes.toString(result.getRow) should === (r)
+      rk.read(result.getRow) should === (r)
 
       for {
         cf <- m.keys
+        cfb = ws.write(cf)
         col <- m(cf).keys
-        cell = result.getColumnLatestCell(cf, col)
-        value = Bytes.toString(CellUtil.cloneValue(cell))
+        cell = result.getColumnLatestCell(cfb, wq.write(col))
+        value = rv.read(CellUtil.cloneValue(cell))
         ts = cell.getTimestamp
       } dataToCheck(value, ts) should === (m(cf)(col))
     }
@@ -67,21 +79,24 @@ trait Checkers extends SuiteMixin with Matchers { this: Suite =>
 
   // one family
   // fixed columns, values with timestamp
-  def checkWithOneColumnFamilyAndTimestamp(t: HTable, cf: String, cols: Seq[String], s: Seq[(String, Seq[(_, Long)])]) = {
+  def checkWithOneColumnFamilyAndTimestamp[K, Q, V](t: HTable, cf: String, cols: Seq[Q], s: Seq[(K, Seq[(V, Long)])])
+                                                   (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]) = {
+    val cfb = ws.write(cf)
+
     for ((r, vs) <- s) {
-      val get = new Get(r)
+      val get = new Get(wk.write(r))
       get.setMaxVersions(2)
       val result = t.get(get)
 
-      Bytes.toString(result.getRow) should === (r)
+      rk.read(result.getRow) should === (r)
 
       val data = cols zip vs
 
       for {
         (col, (value, timestamp)) <- data
-        cells = result.getColumnCells(cf, col)
+        cells = result.getColumnCells(cfb, wq.write(col))
       } cells.map { cell =>
-        val cellValue = Bytes.toString(CellUtil.cloneValue(cell))
+        val cellValue = rv.read(CellUtil.cloneValue(cell))
         val cellTimestamp = cell.getTimestamp
         (cellValue, cellTimestamp)
       } should contain ((value, timestamp))

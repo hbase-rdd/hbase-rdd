@@ -5,6 +5,15 @@ HBase RDD
 
 This project allows to connect Apache Spark to HBase. Currently it is compiled with Scala 2.10 and 2.11, using the versions of Spark and HBase available on CDH5.5. Version `0.6.0` of this project works on CDH5.3, version `0.4.0` works on CDH5.1 and version `0.2.2-SNAPSHOT` works on CDH5.0. Other combinations of versions may be made available in the future.
 
+Please Note
+-----------
+
+This is an experimental implementation where you can use generic types for row key and/or qualifier as long as implicit formatters for these types are in scope.
+For example you can read with `sc.hbase[K, Q, V](table, columns)` where K and Q are types for row key and qualifier and V is the usual type for values. But you can also read with `sc.hbase[K, V](table, columns)` where only the types for row key and value are explicit, while qualifier is a String, or the usual `sc.hbase[V](table, columns)` already available. This applies for all `sc.hbase()` methods.
+For writing or deleting you can simply pass an RDD like `RDD[(K, Map[String, Map[Q, V]])]` (and alternatives).
+
+You can test it after `publishLocal` of this project and add `dependencies += "eu.unicredit" %% "hbase-rdd" % "0.8.0-generics"` 
+
 Table of contents
 -----------------
 

@@ -6,18 +6,16 @@ import java.util.Calendar
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase.client.{Connection, ConnectionFactory}
 import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
-import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.hbase.{HColumnDescriptor, HTableDescriptor, TableName}
 import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.rdd.RDD
+
+import scala.reflect.ClassTag
 
 /**
  * Utilities for dealing with HBase tables
  */
 trait HBaseUtils {
-
-  implicit def stringToBytes(s: String): Array[Byte] = Bytes.toBytes(s)
-  implicit def arrayToBytes(a: Array[String]): Array[Array[Byte]] = a map Bytes.toBytes
 
   protected[hbase] def createJob(table: String, conf: Configuration) = {
     conf.set(TableOutputFormat.OUTPUT_TABLE, table)
@@ -44,12 +42,13 @@ trait HBaseUtils {
      *
      * @return true if table exists, false otherwise
      */
-    def tableExists(tableName: String, family: String): Boolean = {
+    def tableExists[Q](tableName: String, family: Q)(implicit wq: Writes[Q]): Boolean = {
       val admin = connection.getAdmin
       val table = TableName.valueOf(tableName)
+      val bf = wq.write(family)
       if (admin.tableExists(table)) {
         val families = admin.getTableDescriptor(table).getFamiliesKeys
-        require(families.contains(family.getBytes), s"Table [$table] exists but column family [$family] is missing")
+        require(families.contains(bf), s"Table [$table] exists but column family [$family] is missing")
         true
       } else false
     }
@@ -62,13 +61,13 @@ trait HBaseUtils {
      *
      * @return true if table exists, false otherwise
      */
-    def tableExists(tableName: String, families: Set[String]): Boolean = {
+    def tableExists[Q](tableName: String, families: Set[Q])(implicit wq: Writes[Q]): Boolean = {
       val admin = connection.getAdmin
       val table = TableName.valueOf(tableName)
       if (admin.tableExists(table)) {
         val tfamilies = admin.getTableDescriptor(table).getFamiliesKeys
         for (family <- families)
-          require(tfamilies.contains(family.getBytes), s"Table [$table] exists but column family [$family] is missing")
+          require(tfamilies.contains(wq.write(family)), s"Table [$table] exists but column family [$family] is missing")
         true
       } else false
     }
@@ -106,16 +105,16 @@ trait HBaseUtils {
      * @param families set of column families
      * @param splitKeys ordered list of keys that defines region splits
      */
-    def createTable(tableName: String, families: Set[String], splitKeys: Seq[String]): Admin = {
+    def createTable[K, Q](tableName: String, families: Set[Q], splitKeys: Seq[K])(implicit wk: Writes[K], wq: Writes[Q]): Admin = {
       val admin = connection.getAdmin
       val table = TableName.valueOf(tableName)
       if (!admin.isTableAvailable(table)) {
         val tableDescriptor = new HTableDescriptor(table)
-        families foreach { f => tableDescriptor.addFamily(new HColumnDescriptor(f)) }
+        families foreach { f => tableDescriptor.addFamily(new HColumnDescriptor(wq.write(f))) }
         if (splitKeys.isEmpty)
           admin.createTable(tableDescriptor)
         else {
-          val splitKeysBytes = splitKeys.map(Bytes.toBytes).toArray
+          val splitKeysBytes = splitKeys.map(wk.write).toArray
           admin.createTable(tableDescriptor, splitKeysBytes)
         }
       }
@@ -129,8 +128,8 @@ trait HBaseUtils {
       * @param tableName name of table
       * @param families set of column families
       */
-    def createTable(tableName: String, families: Set[String]): Admin =
-      createTable(tableName, families, Seq.empty)
+    def createTable[Q: Writes](tableName: String, families: Set[Q]): Admin =
+      createTable[String, Q](tableName, families, Nil)
 
     /**
      * Creates a table (if it doesn't exist already) with one or more column families
@@ -138,8 +137,8 @@ trait HBaseUtils {
      * @param tableName name of table
      * @param families list of one or more column families
      */
-    def createTable(tableName: String, families: String*): Admin =
-      createTable(tableName, families.toSet, Seq.empty)
+    def createTable[Q: Writes](tableName: String, families: Q*): Admin =
+      createTable[String, Q](tableName, families.toSet, Nil)
 
     /**
      * Creates a table (if it doesn't exist already) with a column family and made of one or more regions
@@ -148,7 +147,7 @@ trait HBaseUtils {
      * @param family name of column family
      * @param splitKeys ordered list of keys that defines region splits
      */
-    def createTable(tableName: String, family: String, splitKeys: Seq[String]): Admin =
+    def createTable[K: Writes, Q: Writes](tableName: String, family: Q, splitKeys: Seq[K]): Admin =
       createTable(tableName, Set(family), splitKeys)
 
     /**
@@ -203,7 +202,7 @@ trait HBaseUtils {
    *
    * @return a sorted sequence of start keys
    */
-  def computeSplits(rdd: RDD[String], regionsCount: Int): Seq[String] = {
+  def computeSplits[K: ClassTag](rdd: RDD[K], regionsCount: Int)(implicit ord: Ordering[K]): Seq[K] = {
     rdd.sortBy(s => s, numPartitions = regionsCount)
       .mapPartitions(_.take(1))
       .collect().toList.tail
