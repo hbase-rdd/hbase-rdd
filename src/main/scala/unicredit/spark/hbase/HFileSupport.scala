@@ -70,14 +70,14 @@ private[hbase] object HFileMethods {
   type KeyValueWrapperF[C, V] = (Array[Byte]) => KeyValueWrapper[C, V]
 
   // GetCellKey
-  def gc[V](c: CellKey, v: V) = (c, v)
-  def gc[V](c: CellKey, v: (V, Long)) = ((c, v._2), v._1)
+  def gc[A](c: CellKey, v: A) = (c, v)
+  def gc[A](c: CellKey, v: (A, Long)) = ((c, v._2), v._1)
 
   // KeyValueWrapperF
-  def kvf[V](f: Array[Byte])(c: CellKey, v: V)(implicit wv: Writes[V]) =
-    (new ImmutableBytesWritable(c._1), new KeyValue(c._1, f, c._2, wv.write(v)))
-  def kvft[V](f: Array[Byte])(c: CellKeyTS, v: V)(implicit wv: Writes[V]) =
-    (new ImmutableBytesWritable(c._1._1), new KeyValue(c._1._1, f, c._1._2, c._2, wv.write(v)))
+  def kvf[A](f: Array[Byte])(c: CellKey, v: A)(implicit writer: Writes[A]) =
+    (new ImmutableBytesWritable(c._1), new KeyValue(c._1, f, c._2, writer.write(v)))
+  def kvft[A](f: Array[Byte])(c: CellKeyTS, v: A)(implicit writer: Writes[A]) =
+    (new ImmutableBytesWritable(c._1._1), new KeyValue(c._1._1, f, c._1._2, c._2, writer.write(v)))
 
   class CellKeyOrdering extends Ordering[CellKey] {
     override def compare(a: CellKey, b: CellKey) = {
