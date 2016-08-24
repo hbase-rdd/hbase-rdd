@@ -35,10 +35,10 @@ trait HBaseWriteSupport {
   implicit def toHBaseRDDSimpleTS[K: Writes, Q: Writes, V: Writes](rdd: RDD[(K, Map[Q, (V, Long)])]): HBaseWriteRDDSimple[K, Q, (V, Long)] =
     new HBaseWriteRDDSimple(rdd, pa[V])
 
-  implicit def toHBaseRDDFixed[K: Writes, Q: Writes, V: Writes](rdd: RDD[(K, Seq[V])]): HBaseWriteRDDFixed[K, Q, V] =
+  implicit def toHBaseRDDFixed[K: Writes, V: Writes](rdd: RDD[(K, Seq[V])]): HBaseWriteRDDFixed[K, V] =
     new HBaseWriteRDDFixed(rdd, pa[V])
 
-  implicit def toHBaseRDDFixedTS[K: Writes, Q: Writes, V: Writes](rdd: RDD[(K, Seq[(V, Long)])]): HBaseWriteRDDFixed[K, Q, (V, Long)] =
+  implicit def toHBaseRDDFixedTS[K: Writes, V: Writes](rdd: RDD[(K, Seq[(V, Long)])]): HBaseWriteRDDFixed[K, (V, Long)] =
     new HBaseWriteRDDFixed(rdd, pa[V])
 
   implicit def toHBaseRDD[K: Writes, Q: Writes, V: Writes](rdd: RDD[(K, Map[String, Map[Q, V]])]): HBaseWriteRDD[K, Q, V] =
@@ -56,8 +56,8 @@ private[hbase] object HBaseWriteMethods {
   def pa[V](put: Put, cf: Array[Byte], q: Array[Byte], v: (V, Long))(implicit wv: Writes[V]) = put.addColumn(cf, q, v._2, wv.write(v._1))
 }
 
-sealed abstract class HBaseWriteHelpers[K, Q, V] {
-  protected def convert(id: K, values: Map[String, Map[Q, V]], put: PutAdder[V])(implicit wk: Writes[K], wq: Writes[Q], ws: Writes[String]) = {
+sealed abstract class HBaseWriteHelpers {
+  protected def convert[K, Q, V](id: K, values: Map[String, Map[Q, V]], put: PutAdder[V])(implicit wk: Writes[K], wq: Writes[Q], ws: Writes[String]) = {
     val p = new Put(wk.write(id))
     var empty = true
     for {
@@ -73,7 +73,7 @@ sealed abstract class HBaseWriteHelpers[K, Q, V] {
   }
 }
 
-final class HBaseWriteRDDSimple[K: Writes, Q: Writes, V](val rdd: RDD[(K, Map[Q, V])], val put: PutAdder[V]) extends HBaseWriteHelpers[K, Q, V] with Serializable {
+final class HBaseWriteRDDSimple[K: Writes, Q: Writes, V](val rdd: RDD[(K, Map[Q, V])], val put: PutAdder[V]) extends HBaseWriteHelpers with Serializable {
   /**
    * Writes the underlying RDD to HBase.
    *
@@ -92,7 +92,7 @@ final class HBaseWriteRDDSimple[K: Writes, Q: Writes, V](val rdd: RDD[(K, Map[Q,
   }
 }
 
-final class HBaseWriteRDDFixed[K: Writes, Q: Writes, V](val rdd: RDD[(K, Seq[V])], val put: PutAdder[V]) extends HBaseWriteHelpers[K, Q, V] with Serializable {
+final class HBaseWriteRDDFixed[K: Writes, V](val rdd: RDD[(K, Seq[V])], val put: PutAdder[V]) extends HBaseWriteHelpers with Serializable {
   /**
    * Writes the underlying RDD to HBase.
    *
@@ -103,7 +103,7 @@ final class HBaseWriteRDDFixed[K: Writes, Q: Writes, V](val rdd: RDD[(K, Seq[V])
    * where the first value is the rowkey and the second is a sequence of values
    * that are associated to a sequence of headers.
    */
-  def toHBase(table: String, family: String, headers: Seq[Q])(implicit config: HBaseConfig) = {
+  def toHBase[Q: Writes](table: String, family: String, headers: Seq[Q])(implicit config: HBaseConfig) = {
     val conf = config.get
     val job = createJob(table, conf)
 
@@ -114,7 +114,7 @@ final class HBaseWriteRDDFixed[K: Writes, Q: Writes, V](val rdd: RDD[(K, Seq[V])
   }
 }
 
-final class HBaseWriteRDD[K: Writes, Q: Writes, V](val rdd: RDD[(K, Map[String, Map[Q, V]])], val put: PutAdder[V]) extends HBaseWriteHelpers[K, Q, V] with Serializable {
+final class HBaseWriteRDD[K: Writes, Q: Writes, V](val rdd: RDD[(K, Map[String, Map[Q, V]])], val put: PutAdder[V]) extends HBaseWriteHelpers with Serializable {
   /**
    * Writes the underlying RDD to HBase.
    *
