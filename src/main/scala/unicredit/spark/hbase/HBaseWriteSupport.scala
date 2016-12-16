@@ -22,10 +22,14 @@ import org.apache.spark.rdd.RDD
 import HBaseWriteMethods._
 
 /**
- * Adds implicit methods to `RDD[(String, Map[String, A])]`,
- * `RDD[(String, Seq[A])]` and
- * `RDD[(String, Map[String, Map[String, A]])]`
- * to write to HBase sources.
+ * Adds implicit methods to
+ * `RDD[(K, Map[Q, V])]`,
+ * `RDD[(K, Seq[V])]`,
+ * `RDD[(K, Map[String, Map[Q, V]])]`
+ * `RDD[(K, Map[Q, (V, Long)])]`,
+ * `RDD[(K, Seq[(V, Long)])]`,
+ * `RDD[(K, Map[String, Map[Q, (V, Long)]])]`
+ * to write to HBase tables.
  */
 trait HBaseWriteSupport {
 
@@ -52,12 +56,13 @@ private[hbase] object HBaseWriteMethods {
   type PutAdder[V] = (Put, Array[Byte], Array[Byte], V) => Put
 
   // PutAdder
-  def pa[V](put: Put, cf: Array[Byte], q: Array[Byte], v: V)(implicit wv: Writes[V]) = put.addColumn(cf, q, wv.write(v))
-  def pa[V](put: Put, cf: Array[Byte], q: Array[Byte], v: (V, Long))(implicit wv: Writes[V]) = put.addColumn(cf, q, v._2, wv.write(v._1))
+  def pa[V](put: Put, cf: Array[Byte], q: Array[Byte], v: V)(implicit wv: Writes[V]): Put = put.addColumn(cf, q, wv.write(v))
+  def pa[V](put: Put, cf: Array[Byte], q: Array[Byte], v: (V, Long))(implicit wv: Writes[V]): Put = put.addColumn(cf, q, v._2, wv.write(v._1))
 }
 
 sealed abstract class HBaseWriteHelpers {
-  protected def convert[K, Q, V](id: K, values: Map[String, Map[Q, V]], put: PutAdder[V])(implicit wk: Writes[K], wq: Writes[Q], ws: Writes[String]) = {
+  protected def convert[K, Q, V](id: K, values: Map[String, Map[Q, V]], put: PutAdder[V])
+                                (implicit wk: Writes[K], wq: Writes[Q], ws: Writes[String]): Option[(ImmutableBytesWritable, Put)] = {
     val p = new Put(wk.write(id))
     var empty = true
     for {
@@ -80,11 +85,11 @@ final class HBaseWriteRDDSimple[K: Writes, Q: Writes, V](val rdd: RDD[(K, Map[Q,
    * Simplified form, where all values are written to the
    * same column family.
    *
-   * The RDD is assumed to be an instance of `RDD[(String, Map[String, A])]`,
+   * The RDD is assumed to be an instance of `RDD[(K, Map[Q, V])]`,
    * where the first value is the rowkey and the second is a map that
    * associates column names to values.
    */
-  def toHBase(table: String, family: String)(implicit config: HBaseConfig) = {
+  def toHBase(table: String, family: String)(implicit config: HBaseConfig): Unit = {
     val conf = config.get
     val job = createJob(table, conf)
 
@@ -99,11 +104,11 @@ final class HBaseWriteRDDFixed[K: Writes, V](val rdd: RDD[(K, Seq[V])], val put:
    * Simplified form, where all values are written to the
    * same column family, and columns are fixed, so that their names can be passed as a sequence.
    *
-   * The RDD is assumed to be an instance of `RDD[(String, Seq[A])]`,
+   * The RDD is assumed to be an instance of `RDD[(K, Seq[V])]`,
    * where the first value is the rowkey and the second is a sequence of values
    * that are associated to a sequence of headers.
    */
-  def toHBase[Q: Writes](table: String, family: String, headers: Seq[Q])(implicit config: HBaseConfig) = {
+  def toHBase[Q: Writes](table: String, family: String, headers: Seq[Q])(implicit config: HBaseConfig): Unit = {
     val conf = config.get
     val job = createJob(table, conf)
 
@@ -118,11 +123,11 @@ final class HBaseWriteRDD[K: Writes, Q: Writes, V](val rdd: RDD[(K, Map[String, 
   /**
    * Writes the underlying RDD to HBase.
    *
-   * The RDD is assumed to be an instance of `RDD[(String, Map[String, Map[String, A]])]`,
+   * The RDD is assumed to be an instance of `RDD[(K, Map[String, Map[Q, V]])]`,
    * where the first value is the rowkey and the second is a nested map that associates
    * column families and column names to values.
    */
-  def toHBase(table: String)(implicit config: HBaseConfig) = {
+  def toHBase(table: String)(implicit config: HBaseConfig): Unit = {
     val conf = config.get
     val job = createJob(table, conf)
 

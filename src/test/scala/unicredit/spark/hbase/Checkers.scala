@@ -15,7 +15,7 @@ trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWr
   // one family
   // map of qualifiers -> values
   def checkWithOneColumnFamily[K, Q, V](t: HTable, cf: String, s: Seq[(K, Map[Q, _])], dataToCheck: (V, Long) => Any)
-                                       (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]) = {
+                                       (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]): Unit = {
     val cfb = ws.write(cf)
 
     for ((r, m) <- s) {
@@ -36,7 +36,7 @@ trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWr
   // one family
   // fixed columns
   def checkWithOneColumnFamily[K, Q, V](t: HTable, cf: String, cols: Seq[Q], s: Seq[(K, Seq[_])], dataToCheck: (V, Long) => Any)
-                                       (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]) = {
+                                       (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]): Unit = {
     val cfb = ws.write(cf)
 
     for ((r, vs) <- s) {
@@ -59,7 +59,7 @@ trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWr
   // many families
   // map of qualifiers -> values
   def checkWithAllColumnFamilies[K, Q, V](t: HTable, s: Seq[(K, Map[String, Map[Q, _]])], dataToCheck: (V, Long) => Any)
-                                         (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]) = {
+                                         (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]): Unit = {
     for ((r, m) <- s) {
       val get = new Get(wk.write(r))
       val result = t.get(get)
@@ -80,7 +80,7 @@ trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWr
   // one family
   // fixed columns, values with timestamp
   def checkWithOneColumnFamilyAndTimestamp[K, Q, V](t: HTable, cf: String, cols: Seq[Q], s: Seq[(K, Seq[(V, Long)])])
-                                                   (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]) = {
+                                                   (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]): Unit = {
     val cfb = ws.write(cf)
 
     for ((r, vs) <- s) {

@@ -6,7 +6,7 @@ name := "hbase-rdd"
 
 organization := "eu.unicredit"
 
-version := "0.8.0-generics"
+version := "0.8.0"
 
 crossScalaVersions := Seq("2.10.6", "2.11.8")
 
@@ -26,8 +26,8 @@ resolvers ++= Seq(
 )
 
 val sparkVersion = "1.5.0"
-val hbaseVersion = "1.0.0-cdh5.5.1"
-val hadoopVersion = "2.6.0-cdh5.5.1"
+val hbaseVersion = "1.0.0-cdh5.5.2"
+val hadoopVersion = "2.6.0-cdh5.5.2"
 
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",

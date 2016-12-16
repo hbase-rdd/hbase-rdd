@@ -70,17 +70,17 @@ private[hbase] object HFileMethods {
   type KeyValueWrapperF[C, V] = (Array[Byte]) => KeyValueWrapper[C, V]
 
   // GetCellKey
-  def gc[A](c: CellKey, v: A) = (c, v)
-  def gc[A](c: CellKey, v: (A, Long)) = ((c, v._2), v._1)
+  def gc[A](c: CellKey, v: A): (CellKey, A) = (c, v)
+  def gc[A](c: CellKey, v: (A, Long)): (CellKeyTS, A) = ((c, v._2), v._1)
 
   // KeyValueWrapperF
-  def kvf[A](f: Array[Byte])(c: CellKey, v: A)(implicit writer: Writes[A]) =
+  def kvf[A](f: Array[Byte])(c: CellKey, v: A)(implicit writer: Writes[A]): (ImmutableBytesWritable, KeyValue) =
     (new ImmutableBytesWritable(c._1), new KeyValue(c._1, f, c._2, writer.write(v)))
-  def kvft[A](f: Array[Byte])(c: CellKeyTS, v: A)(implicit writer: Writes[A]) =
+  def kvft[A](f: Array[Byte])(c: CellKeyTS, v: A)(implicit writer: Writes[A]): (ImmutableBytesWritable, KeyValue) =
     (new ImmutableBytesWritable(c._1._1), new KeyValue(c._1._1, f, c._1._2, c._2, writer.write(v)))
 
   class CellKeyOrdering extends Ordering[CellKey] {
-    override def compare(a: CellKey, b: CellKey) = {
+    override def compare(a: CellKey, b: CellKey): Int = {
       val (ak, aq) = a
       val (bk, bq) = b
       // compare keys
@@ -92,7 +92,7 @@ private[hbase] object HFileMethods {
 
   class CellKeyTSOrdering extends Ordering[CellKeyTS] {
     val cellKeyOrdering = new CellKeyOrdering
-    override def compare(a: CellKeyTS, b: CellKeyTS) = {
+    override def compare(a: CellKeyTS, b: CellKeyTS): Int = {
       val (ac, at) = a
       val (bc, bt) = b
       val ord = cellKeyOrdering.compare(ac, bc)
@@ -110,7 +110,7 @@ private[hbase] object HFileMethods {
 sealed abstract class HFileRDDHelper extends Serializable {
 
   private object HFilePartitioner {
-    def apply(conf: Configuration, splits: Array[Array[Byte]], numFilesPerRegionPerFamily: Int) = {
+    def apply(conf: Configuration, splits: Array[Array[Byte]], numFilesPerRegionPerFamily: Int): HFilePartitioner = {
       if (numFilesPerRegionPerFamily == 1)
         new SingleHFilePartitioner(splits)
       else {
@@ -121,7 +121,7 @@ sealed abstract class HFileRDDHelper extends Serializable {
   }
 
   protected abstract class HFilePartitioner extends Partitioner {
-    def extractKey(n: Any) = n match {
+    def extractKey(n: Any): Array[Byte] = n match {
       case (k: Array[Byte], _) => k // CellKey
       case ((k: Array[Byte], _), _) => k //CellKeyTS
     }
@@ -155,13 +155,15 @@ sealed abstract class HFileRDDHelper extends Serializable {
   protected def getPartitioner(regionLocator: RegionLocator, numFilesPerRegionPerFamily: Int)(implicit config: HBaseConfig) =
     HFilePartitioner(config.get, regionLocator.getStartKeys, numFilesPerRegionPerFamily)
 
-  protected def getPartitionedRdd[C: ClassTag, A: ClassTag](rdd: RDD[(C, A)], kv: KeyValueWrapper[C, A], partitioner: HFilePartitioner)(implicit ord: Ordering[C]) = {
+  protected def getPartitionedRdd[C: ClassTag, A: ClassTag](rdd: RDD[(C, A)], kv: KeyValueWrapper[C, A], partitioner: HFilePartitioner)
+                                                           (implicit ord: Ordering[C]): RDD[(ImmutableBytesWritable, KeyValue)] = {
     rdd
       .repartitionAndSortWithinPartitions(partitioner)
       .map { case (cell, value) => kv(cell, value) }
   }
 
-  protected def saveAsHFile(rdd: RDD[(ImmutableBytesWritable, KeyValue)], table: Table, regionLocator: RegionLocator, connection: Connection)(implicit config: HBaseConfig) = {
+  protected def saveAsHFile(rdd: RDD[(ImmutableBytesWritable, KeyValue)], table: Table, regionLocator: RegionLocator, connection: Connection)
+                           (implicit config: HBaseConfig): Unit = {
     val conf = config.get
     val job = Job.getInstance(conf, this.getClass.getName.split('$')(0))
 
@@ -219,11 +221,12 @@ final class HFileRDDSimple[K: Writes, Q: Writes, C: ClassTag, A: ClassTag, V: Cl
    * Simplified form, where all values are written to the
    * same column family.
    *
-   * The RDD is assumed to be an instance of `RDD[(String, Map[String, A])]`,
+   * The RDD is assumed to be an instance of `RDD[(K, Map[Q, A])]`,
    * where the first value is the rowkey and the second is a map that
    * associates column names to values.
    */
-  def toHBaseBulk(tableNameStr: String, family: String, numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
+  def toHBaseBulk(tableNameStr: String, family: String, numFilesPerRegionPerFamily: Int = 1)
+                 (implicit config: HBaseConfig, ord: Ordering[C]): Unit = {
     require(numFilesPerRegionPerFamily > 0)
     val wk = implicitly[Writes[K]]
     val wq = implicitly[Writes[Q]]
@@ -254,11 +257,12 @@ final class HFileRDDFixed[K: Writes, C: ClassTag, A: ClassTag, V: ClassTag](seqR
    * Simplified form, where all values are written to the
    * same column family, and columns are fixed, so that their names can be passed as a sequence.
    *
-   * The RDD is assumed to be an instance of `RDD[(String, Seq[A])`,
+   * The RDD is assumed to be an instance of `RDD[(K, Seq[A])`,
    * where the first value is the rowkey and the second is a sequence of values to be
    * associated to column names in `headers`.
    */
-  def toHBaseBulk[Q: Writes](tableNameStr: String, family: String, headers: Seq[Q], numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
+  def toHBaseBulk[Q: Writes](tableNameStr: String, family: String, headers: Seq[Q], numFilesPerRegionPerFamily: Int = 1)
+                            (implicit config: HBaseConfig, ord: Ordering[C]): Unit = {
     require(numFilesPerRegionPerFamily > 0)
     val wk = implicitly[Writes[K]]
     val wq = implicitly[Writes[Q]]
@@ -288,11 +292,12 @@ final class HFileRDD[K: Writes, Q: Writes, C: ClassTag, A: ClassTag, V: ClassTag
   /**
    * Load the underlying RDD to HBase, using HFiles.
    *
-   * The RDD is assumed to be an instance of `RDD[(String, Map[String, Map[String, A]])]`,
+   * The RDD is assumed to be an instance of `RDD[(K, Map[String, Map[Q, A]])]`,
    * where the first value is the rowkey and the second is a nested map that associates
    * column families and column names to values.
    */
-  def toHBaseBulk(tableNameStr: String, numFilesPerRegionPerFamily: Int = 1)(implicit config: HBaseConfig, ord: Ordering[C]) = {
+  def toHBaseBulk(tableNameStr: String, numFilesPerRegionPerFamily: Int = 1)
+                 (implicit config: HBaseConfig, ord: Ordering[C]): Unit = {
     require(numFilesPerRegionPerFamily > 0)
     val wk = implicitly[Writes[K]]
     val wq = implicitly[Writes[Q]]

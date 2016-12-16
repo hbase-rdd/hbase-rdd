@@ -17,7 +17,7 @@ import scala.reflect.ClassTag
  */
 trait HBaseUtils {
 
-  protected[hbase] def createJob(table: String, conf: Configuration) = {
+  protected[hbase] def createJob(table: String, conf: Configuration): Job = {
     conf.set(TableOutputFormat.OUTPUT_TABLE, table)
     val job = Job.getInstance(conf, this.getClass.getName.split('$')(0))
     job.setOutputFormatClass(classOf[TableOutputFormat[String]])
@@ -32,7 +32,7 @@ trait HBaseUtils {
     /**
      * Closes the connection to HBase. Must the Admin instance is no more needed
      */
-    def close = connection.close()
+    def close(): Unit = connection.close()
 
     /**
      * Checks if table exists, and requires that it contains the desired column family
@@ -42,13 +42,12 @@ trait HBaseUtils {
      *
      * @return true if table exists, false otherwise
      */
-    def tableExists[Q](tableName: String, family: Q)(implicit wq: Writes[Q]): Boolean = {
+    def tableExists(tableName: String, family: String)(implicit wq: Writes[String]): Boolean = {
       val admin = connection.getAdmin
       val table = TableName.valueOf(tableName)
-      val bf = wq.write(family)
       if (admin.tableExists(table)) {
         val families = admin.getTableDescriptor(table).getFamiliesKeys
-        require(families.contains(bf), s"Table [$table] exists but column family [$family] is missing")
+        require(families.contains(wq.write(family)), s"Table [$table] exists but column family [$family] is missing")
         true
       } else false
     }
@@ -61,7 +60,7 @@ trait HBaseUtils {
      *
      * @return true if table exists, false otherwise
      */
-    def tableExists[Q](tableName: String, families: Set[Q])(implicit wq: Writes[Q]): Boolean = {
+    def tableExists(tableName: String, families: Set[String])(implicit wq: Writes[String]): Boolean = {
       val admin = connection.getAdmin
       val table = TableName.valueOf(tableName)
       if (admin.tableExists(table)) {
@@ -105,7 +104,7 @@ trait HBaseUtils {
      * @param families set of column families
      * @param splitKeys ordered list of keys that defines region splits
      */
-    def createTable[K, Q](tableName: String, families: Set[Q], splitKeys: Seq[K])(implicit wk: Writes[K], wq: Writes[Q]): Admin = {
+    def createTable[K](tableName: String, families: Set[String], splitKeys: Seq[K])(implicit wk: Writes[K], wq: Writes[String]): Admin = {
       val admin = connection.getAdmin
       val table = TableName.valueOf(tableName)
       if (!admin.isTableAvailable(table)) {
@@ -128,8 +127,8 @@ trait HBaseUtils {
       * @param tableName name of table
       * @param families set of column families
       */
-    def createTable[Q: Writes](tableName: String, families: Set[Q]): Admin =
-      createTable[String, Q](tableName, families, Nil)
+    def createTable(tableName: String, families: Set[String]): Admin =
+      createTable[String](tableName, families, Nil)
 
     /**
      * Creates a table (if it doesn't exist already) with one or more column families
@@ -137,8 +136,8 @@ trait HBaseUtils {
      * @param tableName name of table
      * @param families list of one or more column families
      */
-    def createTable[Q: Writes](tableName: String, families: Q*): Admin =
-      createTable[String, Q](tableName, families.toSet, Nil)
+    def createTable(tableName: String, families: String*): Admin =
+      createTable[String](tableName, families.toSet, Nil)
 
     /**
      * Creates a table (if it doesn't exist already) with a column family and made of one or more regions
@@ -147,7 +146,7 @@ trait HBaseUtils {
      * @param family name of column family
      * @param splitKeys ordered list of keys that defines region splits
      */
-    def createTable[K: Writes, Q: Writes](tableName: String, family: Q, splitKeys: Seq[K]): Admin =
+    def createTable[K: Writes](tableName: String, family: String, splitKeys: Seq[K]): Admin =
       createTable(tableName, Set(family), splitKeys)
 
     /**

@@ -22,10 +22,13 @@ import org.apache.spark.rdd.RDD
 import unicredit.spark.hbase.HBaseDeleteMethods._
 
 /**
- * Adds implicit methods to `RDD[(String, Map[String, A])]`,
- * `RDD[(String, Seq[A])]` and
- * `RDD[(String, Map[String, Map[String, A]])]`
- * to write to HBase sources.
+ * Adds implicit methods to
+ * `RDD[K]`,
+ * `RDD[(K, Set[Q])]`,
+ * `RDD[(K, Set[(Q, Long)])]`,
+ * `RDD[(K, Map[String, Set[Q]])]`,
+ * `RDD[(K, Map[String, Set[(Q, Long)]])]`,
+ * to delete HBase tables.
  */
 trait HBaseDeleteSupport {
 
@@ -49,12 +52,13 @@ private[hbase] object HBaseDeleteMethods {
   type Deleter[Q] = (Delete, Array[Byte], Q) => Delete
 
   // Delete
-  def del[Q](delete: Delete, cf: Array[Byte], q: Q)(implicit wq: Writes[Q]) = delete.addColumns(cf, wq.write(q))
-  def delT[Q](delete: Delete, cf: Array[Byte], qt: (Q, Long))(implicit wq: Writes[Q]) = delete.addColumn(cf, wq.write(qt._1), qt._2)
+  def del[Q](delete: Delete, cf: Array[Byte], q: Q)(implicit wq: Writes[Q]): Delete = delete.addColumns(cf, wq.write(q))
+  def delT[Q](delete: Delete, cf: Array[Byte], qt: (Q, Long))(implicit wq: Writes[Q]): Delete = delete.addColumn(cf, wq.write(qt._1), qt._2)
 }
 
 sealed abstract class HBaseDeleteHelpers {
-  protected def convert[K, Q](id: K, values: Map[String, Set[Q]], del: Deleter[Q])(implicit wk: Writes[K], ws: Writes[String]) = {
+  protected def convert[K, Q](id: K, values: Map[String, Set[Q]], del: Deleter[Q])
+                             (implicit wk: Writes[K], ws: Writes[String]): Option[(ImmutableBytesWritable, Delete)] = {
     val d = new Delete(wk.write(id))
     var empty = true
     for {
@@ -69,13 +73,14 @@ sealed abstract class HBaseDeleteHelpers {
     if (empty) None else Some(new ImmutableBytesWritable, d)
   }
 
-  protected def convert[K](id: K, families: Set[String])(implicit wk: Writes[K], ws: Writes[String]) = {
+  protected def convert[K](id: K, families: Set[String])
+                          (implicit wk: Writes[K], ws: Writes[String]): Option[(ImmutableBytesWritable, Delete)] = {
     val d = new Delete(wk.write(id))
     for (family <- families) d.addFamily(ws.write(family))
     Some(new ImmutableBytesWritable, d)
   }
 
-  protected def convert[K](id: K)(implicit wk: Writes[K]) = {
+  protected def convert[K](id: K)(implicit wk: Writes[K]): Option[(ImmutableBytesWritable, Delete)] = {
     val d = new Delete(wk.write(id))
     Some(new ImmutableBytesWritable, d)
   }
@@ -86,9 +91,9 @@ final class HBaseDeleteRDDKey[K: Writes](val rdd: RDD[K]) extends HBaseDeleteHel
   /**
    * Delete rows specified by rowkeys of the underlying RDD from HBase.
    *
-   * The RDD is assumed to be an instance of `RDD[String]` of rowkeys.
+   * The RDD is assumed to be an instance of `RDD[K]` of rowkeys.
    */
-  def deleteHBase(table: String)(implicit config: HBaseConfig) = {
+  def deleteHBase(table: String)(implicit config: HBaseConfig): Unit = {
     val conf = config.get
     val job = createJob(table, conf)
 
@@ -98,9 +103,9 @@ final class HBaseDeleteRDDKey[K: Writes](val rdd: RDD[K]) extends HBaseDeleteHel
   /**
    * Delete column families of the underlying RDD from HBase.
    *
-   * The RDD is assumed to be an instance of `RDD[String]` of rowkeys.
+   * The RDD is assumed to be an instance of `RDD[K]` of rowkeys.
    */
-  def deleteHBase(table: String, families: Set[String])(implicit config: HBaseConfig) = {
+  def deleteHBase(table: String, families: Set[String])(implicit config: HBaseConfig): Unit = {
     val conf = config.get
     val job = createJob(table, conf)
 
@@ -112,9 +117,9 @@ final class HBaseDeleteRDDKey[K: Writes](val rdd: RDD[K]) extends HBaseDeleteHel
    *
    * Columns are deleted from the same column family, and are the same for all rows.
    *
-   * The RDD is assumed to be an instance of `RDD[String]` of rowkeys.
+   * The RDD is assumed to be an instance of `RDD[K]` of rowkeys.
    */
-  def deleteHBase[Q: Writes](table: String, family: String, columns: Set[Q])(implicit config: HBaseConfig) = {
+  def deleteHBase[Q: Writes](table: String, family: String, columns: Set[Q])(implicit config: HBaseConfig): Unit = {
     val conf = config.get
     val job = createJob(table, conf)
 
@@ -126,9 +131,9 @@ final class HBaseDeleteRDDKey[K: Writes](val rdd: RDD[K]) extends HBaseDeleteHel
    *
    * Columns specified as a map of families / set of qualifiers, are the same for all rows.
    *
-   * The RDD is assumed to be an instance of `RDD[String]` of rowkeys.
+   * The RDD is assumed to be an instance of `RDD[K]` of rowkeys.
    */
-  def deleteHBase[Q: Writes](table: String, qualifiers: Map[String, Set[Q]])(implicit config: HBaseConfig) = {
+  def deleteHBase[Q: Writes](table: String, qualifiers: Map[String, Set[Q]])(implicit config: HBaseConfig): Unit = {
     val conf = config.get
     val job = createJob(table, conf)
 
@@ -144,12 +149,12 @@ final class HBaseDeleteRDDSimple[K: Writes, Q](val rdd: RDD[(K, Set[Q])], val de
    * Simplified form, where columns are deleted from the
    * same column family.
    *
-   * The RDD is assumed to be an instance of `RDD[(String, Seq[A])]`,
-   * where the first value is the rowkey and the second is a sequence of
+   * The RDD is assumed to be an instance of `RDD[(K, Set[Q])]`,
+   * where the first value is the rowkey and the second is a set of
    * column names w/ or w/o timestamps. If timestamp is specified, only the
    * corresponding version is deleted, otherwise all versions are deleted.
    */
-  def deleteHBase(table: String, family: String)(implicit config: HBaseConfig) = {
+  def deleteHBase(table: String, family: String)(implicit config: HBaseConfig): Unit = {
     val conf = config.get
     val job = createJob(table, conf)
 
@@ -161,13 +166,13 @@ final class HBaseDeleteRDD[K: Writes, Q](val rdd: RDD[(K, Map[String, Set[Q]])],
   /**
    * Delete columns of the underlying RDD from HBase.
    *
-   * The RDD is assumed to be an instance of `RDD[(String, Map[String, Seq[A]])]`,
+   * The RDD is assumed to be an instance of `RDD[(K, Map[String, Set[Q]])]`,
    * where the first value is the rowkey and the second is a map that associates
-   * column families and sequence of column names w/ or w/o timestamps.
+   * column families and a set of column names w/ or w/o timestamps.
    * If timestamp is specified, only the corresponding version is deleted,
    * otherwise all versions are deleted.
    */
-  def deleteHBase(table: String)(implicit config: HBaseConfig) = {
+  def deleteHBase(table: String)(implicit config: HBaseConfig): Unit = {
     val conf = config.get
     val job = createJob(table, conf)
 

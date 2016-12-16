@@ -16,7 +16,7 @@ trait MiniCluster extends SuiteMixin with BeforeAndAfterAll { this: Suite =>
   private val master = "local[4]"
   private val appName = "hbase-rdd_spark"
 
-  val sparkConf = new SparkConf()
+  val sparkConf: SparkConf = new SparkConf()
     .setMaster(master)
     .setAppName(appName)
 

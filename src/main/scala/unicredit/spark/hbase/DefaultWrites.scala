@@ -7,38 +7,38 @@ import org.json4s.jackson.JsonMethods._
 trait DefaultWrites {
 
   implicit val booleanWriter = new Writes[Boolean] {
-    def write(data: Boolean) = Bytes.toBytes(data)
+    def write(data: Boolean): Array[Byte] = Bytes.toBytes(data)
   }
 
   implicit val byteArrayWriter = new Writes[Array[Byte]] {
-    def write(data: Array[Byte]) = data
+    def write(data: Array[Byte]): Array[Byte] = data
   }
 
   implicit val doubleWriter = new Writes[Double] {
-    def write(data: Double) = Bytes.toBytes(data)
+    def write(data: Double): Array[Byte] = Bytes.toBytes(data)
   }
 
   implicit val floatWriter = new Writes[Float] {
-    def write(data: Float) = Bytes.toBytes(data)
+    def write(data: Float): Array[Byte] = Bytes.toBytes(data)
   }
 
   implicit val intWriter = new Writes[Int] {
-    def write(data: Int) = Bytes.toBytes(data)
+    def write(data: Int): Array[Byte] = Bytes.toBytes(data)
   }
 
   implicit val jsonWriter = new Writes[JValue] {
-    def write(data: JValue) = Bytes.toBytes(compact(data))
+    def write(data: JValue): Array[Byte] = Bytes.toBytes(compact(data))
   }
 
   implicit val longWriter = new Writes[Long] {
-    def write(data: Long) = Bytes.toBytes(data)
+    def write(data: Long): Array[Byte] = Bytes.toBytes(data)
   }
 
   implicit val shortWriter = new Writes[Short] {
-    def write(data: Short) = Bytes.toBytes(data)
+    def write(data: Short): Array[Byte] = Bytes.toBytes(data)
   }
 
   implicit val stringWriter = new Writes[String] {
-    def write(data: String) = Bytes.toBytes(data)
+    def write(data: String): Array[Byte] = Bytes.toBytes(data)
   }
 }

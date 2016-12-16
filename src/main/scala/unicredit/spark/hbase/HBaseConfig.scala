@@ -22,7 +22,7 @@ import org.apache.hadoop.conf.Configuration
  * Wrapper for HBaseConfiguration
  */
 class HBaseConfig(defaults: Configuration) extends Serializable {
-  def get = HBaseConfiguration.create(defaults)
+  def get: Configuration = HBaseConfiguration.create(defaults)
 }
 
 /**
