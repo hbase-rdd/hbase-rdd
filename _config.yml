@@ -1,0 +1,8 @@
+title: Hbase-rdd
+description: Spark RDD to read and write from HBase
+google_analytics: 
+show_downloads: true
+theme: jekyll-theme-minimal
+
+gems:
+  - jekyll-mentions
