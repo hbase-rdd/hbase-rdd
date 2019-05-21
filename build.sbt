@@ -1,14 +1,10 @@
-import SonatypeKeys._
-
-sonatypeSettings
-
 name := "hbase-rdd"
 
 organization := "eu.unicredit"
 
 version := "0.8.0"
 
-crossScalaVersions := Seq("2.10.6", "2.11.8")
+crossScalaVersions := Seq("2.11.12", "2.12.8")
 
 scalacOptions ++= Seq(
   "-deprecation",
@@ -18,14 +14,12 @@ scalacOptions ++= Seq(
   "-language:reflectiveCalls"
 )
 
-org.scalastyle.sbt.ScalastylePlugin.Settings
-
 resolvers ++= Seq(
   "Cloudera repos" at "https://repository.cloudera.com/artifactory/cloudera-repos",
   "Cloudera releases" at "https://repository.cloudera.com/artifactory/libs-release"
 )
 
-val sparkVersion = "1.5.0"
+val sparkVersion = "2.4.3"
 val hbaseVersion = "1.0.0-cdh5.5.2"
 val hadoopVersion = "2.6.0-cdh5.5.2"
 
@@ -36,7 +30,7 @@ libraryDependencies ++= Seq(
   "org.apache.hbase" % "hbase-server" % hbaseVersion % "provided",
   "org.json4s" %% "json4s-jackson" % "3.2.11" % "provided",
   // for tests
-  "org.scalatest" %% "scalatest" % "2.2.4" % "test",
+  "org.scalatest" %% "scalatest" % "3.0.5" % "test",
   "org.apache.hbase" % "hbase-common" % hbaseVersion % "test" classifier "tests",
   "org.apache.hbase" % "hbase-server" % hbaseVersion % "test" classifier "tests" exclude("org.mortbay.jetty", "servlet-api-2.5"),
   "org.apache.hbase" % "hbase-hadoop-compat" % hbaseVersion % "test",
