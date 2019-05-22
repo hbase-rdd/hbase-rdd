@@ -20,7 +20,7 @@ trait HBaseUtils {
   protected[hbase] def createJob(table: String, conf: Configuration): Job = {
     conf.set(TableOutputFormat.OUTPUT_TABLE, table)
     val job = Job.getInstance(conf, this.getClass.getName.split('$')(0))
-    job.setOutputFormatClass(classOf[TableOutputFormat[String]])
+    job.setOutputFormatClass(classOf[TableOutputFormat[_]])
     job
   }
 
