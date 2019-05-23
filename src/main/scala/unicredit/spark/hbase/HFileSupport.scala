@@ -30,7 +30,7 @@ import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner
 import org.apache.spark.rdd.RDD
 import org.apache.spark.Partitioner
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
 import HFileMethods._
@@ -306,7 +306,7 @@ final class HFileRDD[K: Writes, Q: Writes, C: ClassTag, A: ClassTag, V: ClassTag
     val regionLocator = connection.getRegionLocator(tableName)
     val table = connection.getTable(tableName)
 
-    val families = table.getTableDescriptor.getFamiliesKeys
+    val families = table.getTableDescriptor.getFamiliesKeys.asScala
     val partitioner = getPartitioner(regionLocator, numFilesPerRegionPerFamily)
 
     val rdds = for {

@@ -5,7 +5,7 @@ import org.apache.hadoop.hbase.client.{Get, Table}
 
 import org.scalatest.{Matchers, Suite, SuiteMixin}
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWrites { this: Suite =>
 
@@ -94,7 +94,7 @@ trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWr
 
       for {
         (col, (value, timestamp)) <- data
-        cells = result.getColumnCells(cfb, wq.write(col))
+        cells = result.getColumnCells(cfb, wq.write(col)).asScala
       } cells.map { cell =>
         val cellValue = rv.read(CellUtil.cloneValue(cell))
         val cellTimestamp = cell.getTimestamp
