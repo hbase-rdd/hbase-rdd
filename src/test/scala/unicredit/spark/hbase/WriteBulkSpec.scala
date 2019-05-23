@@ -1,8 +1,9 @@
 package unicredit.spark.hbase
 
-import org.apache.hadoop.fs.{Path, FileSystem}
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.hbase.TableName
 import org.apache.spark.SparkContext
-import org.scalatest.{BeforeAndAfter, Matchers, FlatSpec}
+import org.scalatest.{BeforeAndAfter, FlatSpec, Matchers}
 
 import scala.util.Random
 
@@ -52,11 +53,11 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
 
   "A HFileRDD" should "write to a Table with 1 HFile per region" in {
     table_counter += 1
-    val table_bulk = table_prefix + s"_$table_counter"
+    val table_bulk = TableName.valueOf(table_prefix + s"_$table_counter")
     val htable = htu.createTable(table_bulk, family, splitKeys map w.write)
 
     sc.parallelize(source)
-      .toHBaseBulk(table_bulk, family, cols)
+      .toHBaseBulk(table_bulk.toString, family, cols)
 
     checkWithOneColumnFamily(htable, family, cols, source, checkValue)
     htu.deleteTable(table_bulk)
@@ -64,11 +65,11 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
 
   it should "write to a Table with 2 HFiles per region" in {
     table_counter += 1
-    val table_bulk = table_prefix + s"_$table_counter"
+    val table_bulk = TableName.valueOf(table_prefix + s"_$table_counter")
     val htable = htu.createTable(table_bulk, family, splitKeys map w.write)
 
     sc.parallelize(source)
-      .toHBaseBulk(table_bulk, family, cols, 2)
+      .toHBaseBulk(table_bulk.toString, family, cols, 2)
 
     checkWithOneColumnFamily(htable, family, cols, source, checkValue)
     htu.deleteTable(table_bulk)
@@ -76,13 +77,13 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
 
   it should "write to a Table with timestamps" in {
     table_counter += 1
-    val table_bulk = table_prefix + s"_$table_counter"
+    val table_bulk = TableName.valueOf(table_prefix + s"_$table_counter")
     val htable = htu.createTable(table_bulk, family, splitKeys map w.write)
 
     val source_ts = source map { case (k, colm) => (k, colm map ((_, 1L))) }
 
     sc.parallelize(source_ts)
-      .toHBaseBulk(table_bulk, family, cols)
+      .toHBaseBulk(table_bulk.toString, family, cols)
 
     checkWithOneColumnFamily(htable, family, cols, source_ts, checkValueAndTimestamp)
     htu.deleteTable(table_bulk)
@@ -90,14 +91,14 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
 
   it should "write to a Table with duplicated cells" in {
     table_counter += 1
-    val table_bulk = table_prefix + s"_$table_counter"
+    val table_bulk = TableName.valueOf(table_prefix + s"_$table_counter")
     val htable = htu.createTable(table_bulk, family, splitKeys map w.write)
 
     val row = source(Random.nextInt(numKeys))
     val source_double_row = row +: source
 
     sc.parallelize(source_double_row)
-      .toHBaseBulk(table_bulk, family, cols)
+      .toHBaseBulk(table_bulk.toString, family, cols)
 
     checkWithOneColumnFamily(htable, family, cols, source_double_row, checkValue)
     htu.deleteTable(table_bulk)
@@ -105,7 +106,7 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
 
   it should "write to a Table with cells that only differ in timestamp" in {
     table_counter += 1
-    val table_bulk = table_prefix + s"_$table_counter"
+    val table_bulk = TableName.valueOf(table_prefix + s"_$table_counter")
     val htable = htu.createTable(table_bulk, family, 2) // create table with 2 versions per cell
 
     val source_ts = source map { case (k, colm) => (k, colm map ((_, 2L))) }
@@ -113,7 +114,7 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
     val source_double_row = (row._1, row._2 map { case (s, _) => (s, 1L) }) +: source_ts
 
     sc.parallelize(source_double_row)
-      .toHBaseBulk(table_bulk, family, cols)
+      .toHBaseBulk(table_bulk.toString, family, cols)
 
     checkWithOneColumnFamilyAndTimestamp(htable, family, cols, source_double_row)
     htu.deleteTable(table_bulk)
@@ -121,11 +122,11 @@ class WriteBulkSpec extends FlatSpec with MiniCluster with Checkers with Matcher
 
   it should "write to a Table with 2 column families" in {
     table_counter += 1
-    val table_bulk = table_prefix + s"_$table_counter"
+    val table_bulk = TableName.valueOf(table_prefix + s"_$table_counter")
     val htable = htu.createTable(table_bulk, families.toArray, splitKeys)
 
     sc.parallelize(source_multi_cf)
-      .toHBaseBulk(table_bulk)
+      .toHBaseBulk(table_bulk.toString)
 
     checkWithAllColumnFamilies(htable, source_multi_cf, checkValue)
     htu.deleteTable(table_bulk)
