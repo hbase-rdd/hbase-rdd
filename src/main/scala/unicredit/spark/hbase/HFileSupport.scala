@@ -1,4 +1,4 @@
-/* Copyright 2014 UniCredit S.p.A.
+/* Copyright 2019 UniCredit S.p.A.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
