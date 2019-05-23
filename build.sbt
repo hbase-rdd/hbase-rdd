@@ -15,7 +15,7 @@ scalacOptions ++= Seq(
 )
 
 val sparkVersion = "2.4.3"
-val hbaseVersion = "2.0.5"
+val hbaseVersion = "2.1.1"
 val hadoopVersion = "2.6.5"
 
 libraryDependencies ++= Seq(
