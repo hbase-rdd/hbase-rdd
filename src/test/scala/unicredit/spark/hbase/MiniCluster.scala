@@ -31,7 +31,6 @@ trait MiniCluster extends SuiteMixin with BeforeAndAfterAll { this: Suite =>
   val sparkConf: SparkConf = new SparkConf()
     .setMaster(master)
     .setAppName(appName)
-    .set("spark.hadoop.validateOutputSpecs", "false") // avoid NullPointerException in tests
 
   val htu = new HBaseTestingUtility()
 

@@ -23,7 +23,8 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.hbase.{KeyValue, TableName}
 import org.apache.hadoop.hbase.client._
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
-import org.apache.hadoop.hbase.mapreduce.{ HFileOutputFormat2, LoadIncrementalHFiles }
+import org.apache.hadoop.hbase.mapreduce.HFileOutputFormat2
+import org.apache.hadoop.hbase.tool.LoadIncrementalHFiles
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner
@@ -306,7 +307,7 @@ final class HFileRDD[K: Writes, Q: Writes, C: ClassTag, A: ClassTag, V: ClassTag
     val regionLocator = connection.getRegionLocator(tableName)
     val table = connection.getTable(tableName)
 
-    val families = table.getTableDescriptor.getFamiliesKeys.asScala
+    val families = table.getDescriptor.getColumnFamilyNames.asScala
     val partitioner = getPartitioner(regionLocator, numFilesPerRegionPerFamily)
 
     val rdds = for {

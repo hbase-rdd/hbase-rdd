@@ -100,7 +100,7 @@ trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWr
 
     for ((r, vs) <- s) {
       val get = new Get(wk.write(r))
-      get.setMaxVersions(2)
+      get.readVersions(2)
       val result = t.get(get)
 
       rk.read(result.getRow) should === (r)

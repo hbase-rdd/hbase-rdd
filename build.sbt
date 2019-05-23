@@ -15,20 +15,23 @@ scalacOptions ++= Seq(
 )
 
 val sparkVersion = "2.4.3"
-val hbaseVersion = "1.4.9"
+val hbaseVersion = "2.0.5"
 val hadoopVersion = "2.6.5"
 
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
   "org.apache.hbase" % "hbase-common" % hbaseVersion % "provided",
-  "org.apache.hbase" % "hbase-client" % hbaseVersion % "provided",
+  "org.apache.hbase" % "hbase-mapreduce" % hbaseVersion % "provided",
   "org.apache.hbase" % "hbase-server" % hbaseVersion % "provided",
   // for tests
   "org.scalatest" %% "scalatest" % "3.0.5" % "test",
   "org.apache.hbase" % "hbase-common" % hbaseVersion % "test" classifier "tests",
   "org.apache.hbase" % "hbase-server" % hbaseVersion % "test" classifier "tests",
+  "org.apache.hbase" % "hbase-http" % hbaseVersion % "test",
   "org.apache.hbase" % "hbase-metrics" % hbaseVersion % "test",
   "org.apache.hbase" % "hbase-metrics-api" % hbaseVersion % "test",
+  "org.apache.hbase" % "hbase-zookeeper" % hbaseVersion % "test",
+  "org.apache.hbase" % "hbase-zookeeper" % hbaseVersion % "test" classifier "tests",
   "org.apache.hbase" % "hbase-hadoop-compat" % hbaseVersion % "test",
   "org.apache.hbase" % "hbase-hadoop-compat" % hbaseVersion % "test" classifier "tests",
   "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion % "test" excludeAll ExclusionRule(organization = "org.apache.hadoop"),
@@ -37,6 +40,13 @@ libraryDependencies ++= Seq(
   "org.apache.hadoop" % "hadoop-common" % hadoopVersion % "test" classifier "tests",
   "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % "test",
   "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % "test" classifier "tests"
+)
+
+// required by Spark 2.4
+dependencyOverrides ++= Seq(
+  "com.fasterxml.jackson.core" % "jackson-annotations" % "2.6.7" % "test",
+  "com.fasterxml.jackson.core" % "jackson-core" % "2.6.7" % "test",
+  "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.7" % "test",
 )
 
 fork in Test := true
