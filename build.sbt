@@ -2,7 +2,7 @@ name := "hbase-rdd"
 
 organization := "eu.unicredit"
 
-version := "0.8.0"
+version := "0.9.0-SNAPSHOT"
 
 crossScalaVersions := Seq("2.11.12", "2.12.8")
 
@@ -14,34 +14,27 @@ scalacOptions ++= Seq(
   "-language:reflectiveCalls"
 )
 
-resolvers ++= Seq(
-  "Cloudera repos" at "https://repository.cloudera.com/artifactory/cloudera-repos",
-  "Cloudera releases" at "https://repository.cloudera.com/artifactory/libs-release"
-)
-
 val sparkVersion = "2.4.3"
-val hbaseVersion = "1.0.0-cdh5.5.2"
-val hadoopVersion = "2.6.0-cdh5.5.2"
+val hbaseVersion = "1.3.3"
+val hadoopVersion = "2.6.5"
 
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
   "org.apache.hbase" % "hbase-common" % hbaseVersion % "provided",
   "org.apache.hbase" % "hbase-client" % hbaseVersion % "provided",
   "org.apache.hbase" % "hbase-server" % hbaseVersion % "provided",
-  "org.json4s" %% "json4s-jackson" % "3.2.11" % "provided",
   // for tests
   "org.scalatest" %% "scalatest" % "3.0.5" % "test",
   "org.apache.hbase" % "hbase-common" % hbaseVersion % "test" classifier "tests",
-  "org.apache.hbase" % "hbase-server" % hbaseVersion % "test" classifier "tests" exclude("org.mortbay.jetty", "servlet-api-2.5"),
+  "org.apache.hbase" % "hbase-server" % hbaseVersion % "test" classifier "tests",
   "org.apache.hbase" % "hbase-hadoop-compat" % hbaseVersion % "test",
   "org.apache.hbase" % "hbase-hadoop-compat" % hbaseVersion % "test" classifier "tests",
-  "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion % "test" exclude("javax.servlet", "servlet-api"),
+  "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion % "test",
   "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion % "test" classifier "tests",
-  "org.apache.hadoop" % "hadoop-common" % hadoopVersion % "test" exclude("javax.servlet", "servlet-api"),
+  "org.apache.hadoop" % "hadoop-common" % hadoopVersion % "test",
   "org.apache.hadoop" % "hadoop-common" % hadoopVersion % "test" classifier "tests",
-  "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % "test" exclude("javax.servlet", "servlet-api"),
-  "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % "test" classifier "tests",
-  "org.apache.hadoop" % "hadoop-mapreduce-client-jobclient" % hadoopVersion % "test" classifier "tests" exclude("javax.servlet", "servlet-api")
+  "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % "test",
+  "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % "test" classifier "tests"
 )
 
 fork in Test := true

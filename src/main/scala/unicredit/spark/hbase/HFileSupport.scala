@@ -199,10 +199,7 @@ sealed abstract class HFileRDDHelper extends Serializable {
       setRecursivePermission(hFilePath)
 
       val lih = new LoadIncrementalHFiles(conf)
-      // deprecated method still available in hbase 1.0.0, to be replaced with the method below since hbase 1.1.0
-      lih.doBulkLoad(hFilePath, new HTable(conf, table.getName))
-      // this is available since hbase 1.1.x
-      //lih.doBulkLoad(hFilePath, connection.getAdmin, table, regionLocator)
+      lih.doBulkLoad(hFilePath, connection.getAdmin, table, regionLocator)
     } finally {
       connection.close()
 
