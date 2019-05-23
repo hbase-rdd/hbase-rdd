@@ -15,8 +15,8 @@ scalacOptions ++= Seq(
 )
 
 val sparkVersion = "2.4.3"
-val hbaseVersion = "2.1.1"
-val hadoopVersion = "2.6.5"
+val hbaseVersion = "2.1.4"
+val hadoopVersion = "2.9.2"
 
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
@@ -34,8 +34,8 @@ libraryDependencies ++= Seq(
   "org.apache.hbase" % "hbase-zookeeper" % hbaseVersion % "test" classifier "tests",
   "org.apache.hbase" % "hbase-hadoop-compat" % hbaseVersion % "test",
   "org.apache.hbase" % "hbase-hadoop-compat" % hbaseVersion % "test" classifier "tests",
-  "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion % "test" excludeAll ExclusionRule(organization = "org.apache.hadoop"),
-  "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion % "test" classifier "tests" excludeAll ExclusionRule(organization = "org.apache.hadoop"),
+  "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion % "test",
+  "org.apache.hbase" % "hbase-hadoop2-compat" % hbaseVersion % "test" classifier "tests",
   "org.apache.hadoop" % "hadoop-common" % hadoopVersion % "test",
   "org.apache.hadoop" % "hadoop-common" % hadoopVersion % "test" classifier "tests",
   "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % "test",
