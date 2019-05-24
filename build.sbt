@@ -4,7 +4,13 @@ organization := "eu.unicredit"
 
 version := "0.9.0-SNAPSHOT"
 
-crossScalaVersions := Seq("2.11.12", "2.12.8")
+val scala212 = "2.12.8"
+val scala211 = "2.11.12"
+val supportedScalaVersions = List(scala211, scala212)
+
+crossScalaVersions := supportedScalaVersions
+
+scalaVersion := scala211
 
 scalacOptions ++= Seq(
   "-deprecation",
@@ -14,9 +20,14 @@ scalacOptions ++= Seq(
   "-language:reflectiveCalls"
 )
 
-val sparkVersion = "2.4.3"
-val hbaseVersion = "2.1.4"
-val hadoopVersion = "2.9.2"
+resolvers ++= Seq(
+  "Cloudera repos" at "https://repository.cloudera.com/artifactory/cloudera-repos",
+  "Cloudera releases" at "https://repository.cloudera.com/artifactory/libs-release"
+)
+
+val sparkVersion = "2.4.0-cdh6.2.0"
+val hbaseVersion = "2.1.0-cdh6.2.0"
+val hadoopVersion = "3.0.0-cdh6.2.0"
 
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
@@ -42,18 +53,11 @@ libraryDependencies ++= Seq(
   "org.apache.hadoop" % "hadoop-hdfs" % hadoopVersion % "test" classifier "tests"
 )
 
-// required by Spark 2.4
-dependencyOverrides ++= Seq(
-  "com.fasterxml.jackson.core" % "jackson-annotations" % "2.6.7" % "test",
-  "com.fasterxml.jackson.core" % "jackson-core" % "2.6.7" % "test",
-  "com.fasterxml.jackson.core" % "jackson-databind" % "2.6.7" % "test",
-)
-
 fork in Test := true
 
 publishMavenStyle := true
 
-pomIncludeRepository := { x => false }
+pomIncludeRepository := { _ => false }
 
 credentials += Credentials(Path.userHome / ".ivy2" / "sonatype.credentials")
 
