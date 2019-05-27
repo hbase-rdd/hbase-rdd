@@ -1,4 +1,4 @@
-/* Copyright 2014 UniCredit S.p.A.
+/* Copyright 2019 UniCredit S.p.A.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -23,14 +23,15 @@ import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.hbase.{KeyValue, TableName}
 import org.apache.hadoop.hbase.client._
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
-import org.apache.hadoop.hbase.mapreduce.{ HFileOutputFormat2, LoadIncrementalHFiles }
+import org.apache.hadoop.hbase.mapreduce.HFileOutputFormat2
+import org.apache.hadoop.hbase.tool.LoadIncrementalHFiles
 import org.apache.hadoop.hbase.util.Bytes
 import org.apache.hadoop.mapreduce.Job
 import org.apache.hadoop.mapreduce.lib.partition.TotalOrderPartitioner
 import org.apache.spark.rdd.RDD
 import org.apache.spark.Partitioner
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
 import HFileMethods._
@@ -199,10 +200,7 @@ sealed abstract class HFileRDDHelper extends Serializable {
       setRecursivePermission(hFilePath)
 
       val lih = new LoadIncrementalHFiles(conf)
-      // deprecated method still available in hbase 1.0.0, to be replaced with the method below since hbase 1.1.0
-      lih.doBulkLoad(hFilePath, new HTable(conf, table.getName))
-      // this is available since hbase 1.1.x
-      //lih.doBulkLoad(hFilePath, connection.getAdmin, table, regionLocator)
+      lih.doBulkLoad(hFilePath, connection.getAdmin, table, regionLocator)
     } finally {
       connection.close()
 
@@ -309,7 +307,7 @@ final class HFileRDD[K: Writes, Q: Writes, C: ClassTag, A: ClassTag, V: ClassTag
     val regionLocator = connection.getRegionLocator(tableName)
     val table = connection.getTable(tableName)
 
-    val families = table.getTableDescriptor.getFamiliesKeys
+    val families = table.getDescriptor.getColumnFamilyNames.asScala
     val partitioner = getPartitioner(regionLocator, numFilesPerRegionPerFamily)
 
     val rdds = for {

@@ -1,15 +1,31 @@
+/* Copyright 2019 UniCredit S.p.A.
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+
 package unicredit.spark.hbase
 
 import java.text.SimpleDateFormat
 import java.util.Calendar
 
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.hbase.client.{Connection, ConnectionFactory}
+import org.apache.hadoop.hbase.client.{ColumnFamilyDescriptorBuilder, Connection, ConnectionFactory, TableDescriptorBuilder}
 import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
-import org.apache.hadoop.hbase.{HColumnDescriptor, HTableDescriptor, TableName}
+import org.apache.hadoop.hbase.TableName
 import org.apache.hadoop.mapreduce.Job
 import org.apache.spark.rdd.RDD
 
+import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
 /**
@@ -46,8 +62,8 @@ trait HBaseUtils {
       val admin = connection.getAdmin
       val table = TableName.valueOf(tableName)
       if (admin.tableExists(table)) {
-        val families = admin.getTableDescriptor(table).getFamiliesKeys
-        require(families.contains(wq.write(family)), s"Table [$table] exists but column family [$family] is missing")
+        val families = admin.getDescriptor(table).getColumnFamilies
+        require(families.exists(_.getNameAsString == family), s"Table [$table] exists but column family [$family] is missing")
         true
       } else false
     }
@@ -64,9 +80,9 @@ trait HBaseUtils {
       val admin = connection.getAdmin
       val table = TableName.valueOf(tableName)
       if (admin.tableExists(table)) {
-        val tfamilies = admin.getTableDescriptor(table).getFamiliesKeys
+        val tfamilies = admin.getDescriptor(table).getColumnFamilies
         for (family <- families)
-          require(tfamilies.contains(wq.write(family)), s"Table [$table] exists but column family [$family] is missing")
+          require(tfamilies.exists(_.getNameAsString == family), s"Table [$table] exists but column family [$family] is missing")
         true
       } else false
     }
@@ -91,8 +107,7 @@ trait HBaseUtils {
      */
     def snapshot(tableName: String, snapshotName: String): Admin = {
       val admin = connection.getAdmin
-      val tableDescriptor = new HTableDescriptor(TableName.valueOf(tableName))
-      admin.snapshot(snapshotName, tableDescriptor.getTableName)
+      admin.snapshot(snapshotName, TableName.valueOf(tableName))
       this
     }
 
@@ -108,8 +123,10 @@ trait HBaseUtils {
       val admin = connection.getAdmin
       val table = TableName.valueOf(tableName)
       if (!admin.isTableAvailable(table)) {
-        val tableDescriptor = new HTableDescriptor(table)
-        families foreach { f => tableDescriptor.addFamily(new HColumnDescriptor(wq.write(f))) }
+        val tableDescriptor = TableDescriptorBuilder
+          .newBuilder(table)
+          .setColumnFamilies(families.map(f => ColumnFamilyDescriptorBuilder.newBuilder(wq.write(f)).build()).asJava)
+          .build()
         if (splitKeys.isEmpty)
           admin.createTable(tableDescriptor)
         else {

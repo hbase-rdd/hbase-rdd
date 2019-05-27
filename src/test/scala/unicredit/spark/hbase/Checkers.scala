@@ -1,11 +1,26 @@
+/* Copyright 2019 UniCredit S.p.A.
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+* http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS,
+* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+* See the License for the specific language governing permissions and
+* limitations under the License.
+*/
+
 package unicredit.spark.hbase
 
 import org.apache.hadoop.hbase.CellUtil
-import org.apache.hadoop.hbase.client.{Get, HTable}
+import org.apache.hadoop.hbase.client.{Get, Table}
 
 import org.scalatest.{Matchers, Suite, SuiteMixin}
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWrites { this: Suite =>
 
@@ -14,7 +29,7 @@ trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWr
 
   // one family
   // map of qualifiers -> values
-  def checkWithOneColumnFamily[K, Q, V](t: HTable, cf: String, s: Seq[(K, Map[Q, _])], dataToCheck: (V, Long) => Any)
+  def checkWithOneColumnFamily[K, Q, V](t: Table, cf: String, s: Seq[(K, Map[Q, _])], dataToCheck: (V, Long) => Any)
                                        (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]): Unit = {
     val cfb = ws.write(cf)
 
@@ -35,7 +50,7 @@ trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWr
 
   // one family
   // fixed columns
-  def checkWithOneColumnFamily[K, Q, V](t: HTable, cf: String, cols: Seq[Q], s: Seq[(K, Seq[_])], dataToCheck: (V, Long) => Any)
+  def checkWithOneColumnFamily[K, Q, V](t: Table, cf: String, cols: Seq[Q], s: Seq[(K, Seq[_])], dataToCheck: (V, Long) => Any)
                                        (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]): Unit = {
     val cfb = ws.write(cf)
 
@@ -58,7 +73,7 @@ trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWr
 
   // many families
   // map of qualifiers -> values
-  def checkWithAllColumnFamilies[K, Q, V](t: HTable, s: Seq[(K, Map[String, Map[Q, _]])], dataToCheck: (V, Long) => Any)
+  def checkWithAllColumnFamilies[K, Q, V](t: Table, s: Seq[(K, Map[String, Map[Q, _]])], dataToCheck: (V, Long) => Any)
                                          (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]): Unit = {
     for ((r, m) <- s) {
       val get = new Get(wk.write(r))
@@ -79,13 +94,13 @@ trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWr
 
   // one family
   // fixed columns, values with timestamp
-  def checkWithOneColumnFamilyAndTimestamp[K, Q, V](t: HTable, cf: String, cols: Seq[Q], s: Seq[(K, Seq[(V, Long)])])
+  def checkWithOneColumnFamilyAndTimestamp[K, Q, V](t: Table, cf: String, cols: Seq[Q], s: Seq[(K, Seq[(V, Long)])])
                                                    (implicit rk: Reads[K], wk: Writes[K], wq: Writes[Q], rv: Reads[V], ws: Writes[String]): Unit = {
     val cfb = ws.write(cf)
 
     for ((r, vs) <- s) {
       val get = new Get(wk.write(r))
-      get.setMaxVersions(2)
+      get.readVersions(2)
       val result = t.get(get)
 
       rk.read(result.getRow) should === (r)
@@ -94,7 +109,7 @@ trait Checkers extends SuiteMixin with Matchers with DefaultReads with DefaultWr
 
       for {
         (col, (value, timestamp)) <- data
-        cells = result.getColumnCells(cfb, wq.write(col))
+        cells = result.getColumnCells(cfb, wq.write(col)).asScala
       } cells.map { cell =>
         val cellValue = rv.read(CellUtil.cloneValue(cell))
         val cellTimestamp = cell.getTimestamp

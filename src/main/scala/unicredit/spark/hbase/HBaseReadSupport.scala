@@ -1,4 +1,4 @@
-/* Copyright 2014 UniCredit S.p.A.
+/* Copyright 2019 UniCredit S.p.A.
 *
 * Licensed under the Apache License, Version 2.0 (the "License");
 * you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 
 package unicredit.spark.hbase
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 import org.apache.spark.rdd.RDD
 
@@ -52,7 +52,7 @@ final class HBaseSC(@transient sc: SparkContext) extends Serializable {
   }
 
   private def extractRow[Q, V](data: Set[String], result: Result, read: Cell => V)(implicit rq: Reads[Q], rs: Reads[String]) = {
-    result.listCells groupBy { cell =>
+    result.listCells.asScala groupBy { cell =>
       rs.read(CellUtil.cloneFamily(cell))
     } filterKeys data.contains map {
       // We cannot use mapValues here, because it returns a MapLike, which is not serializable,
