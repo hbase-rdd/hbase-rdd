@@ -6,7 +6,7 @@ HBase RDD
 
 This project allows to connect Apache Spark to HBase. Currently it is compiled with Scala 2.10 and 2.11, using the versions of Spark and HBase available on CDH5.5. Version `0.6.0` of this project works on CDH5.3, version `0.4.0` works on CDH5.1 and version `0.2.2-SNAPSHOT` works on CDH5.0. Other combinations of versions may be made available in the future.
 
-Version `0.9.0-SNAPSHOT` (not published) upgraded to `Scala 2.11`, `CDH 6.2.0` and `sbt 1.2`.
+Version `0.9.0-SNAPSHOT` (not published) upgraded to `Scala 2.11/2.12`, `CDH 6.2.0` with `Apache Spark 2.4.3` and `sbt 1.2`.
 
 Table of contents
 -----------------
