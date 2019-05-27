@@ -2,8 +2,18 @@ HBase RDD
 =========
 
 ![logo](https://raw.githubusercontent.com/unicredit/hbase-rdd/master/docs/logo.png)
+[![Latest version](https://index.scala-lang.org/unicredit/hbase-rdd/hbase-rdd/latest.svg?color=orange)](https://index.scala-lang.org/unicredit/hbase-rdd/hbase-rdd)
 
-This project allows to connect Apache Spark to HBase. Currently it is compiled with Scala 2.10 and 2.11, using the versions of Spark and HBase available on CDH5.5. Version `0.6.0` of this project works on CDH5.3, version `0.4.0` works on CDH5.1 and version `0.2.2-SNAPSHOT` works on CDH5.0. Other combinations of versions may be made available in the future.
+This project allows to connect Apache Spark to HBase. Currently it is compiled with Scala 2.11 and 2.12, using the versions of Spark and HBase available on CDH6.2.
+
+Here is a list of available versions for different CDH releases:
+
+|Version|Flavour|Spark|HBase          |Scala    |
+|:-----:|:-----:|:---:|:-------------:|:-------:|
+|0.9.0  |CDH 6.2|2.4.3|2.1.0-cdh6.2.0 |2.11/2.12|
+|0.8.0  |CDH 5.5|1.5.0|1.0.0-cdh5.5.2 |2.10/2.11|
+|0.6.0  |CDH 5.3|1.2.0|0.98.6-cdh5.3.1|2.10     |
+|0.4.0  |CDH 5.1|1.0.2|0.98.1-cdh5.1.3|2.10     |
 
 Table of contents
 -----------------
@@ -24,15 +34,15 @@ This guide assumes you are using SBT. Usage of similar tools like Maven or Leini
 
 HBase RDD can be added as a dependency in sbt with:
 
-    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.8.0"
+    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.9.0"
 
 Currently, the project depends on the following artifacts:
 
-    "org.apache.spark" %% "spark-core" % "1.5.0" % "provided",
-    "org.apache.hbase" % "hbase-common" % "1.0.0-cdh5.5.2" % "provided",
-    "org.apache.hbase" % "hbase-client" % "1.0.0-cdh5.5.2" % "provided",
-    "org.apache.hbase" % "hbase-server" % "1.0.0-cdh5.5.2" % "provided",
-    "org.json4s" %% "json4s-jackson" % "3.2.11" % "provided"
+    "org.apache.spark" %% "spark-core" % "2.4.3" % "provided",
+    "org.apache.hbase" % "hbase-common" % "2.1.0-cdh6.2.0" % "provided",
+    "org.apache.hbase" % "hbase-mapreduce" % "2.1.0-cdh6.2.0" % "provided",
+    "org.apache.hbase" % "hbase-server" % "2.1.0-cdh6.2.0" % "provided",
+
 
 All dependencies appear with `provided` scope, so you will have to either have these dependencies in your project, or have the corresponding artifacts available locally in your cluster. Most of them are available in the Cloudera repositories, which you can add with the following line:
 
