@@ -2,7 +2,7 @@ name := "hbase-rdd"
 
 organization := "eu.unicredit"
 
-version := "0.9.0-SNAPSHOT"
+version := "0.9.0"
 
 crossScalaVersions := Seq("2.11.12", "2.12.8")
 
@@ -59,6 +59,8 @@ fork in Test := true
 publishMavenStyle := true
 
 pomIncludeRepository := { _ => false }
+
+publishTo := Some(sonatypeDefaultResolver.value)
 
 credentials += Credentials(Path.userHome / ".ivy2" / "sonatype.credentials")
 
