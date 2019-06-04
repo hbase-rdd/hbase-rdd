@@ -2,6 +2,9 @@ HBase RDD
 =========
 
 ![logo](https://raw.githubusercontent.com/unicredit/hbase-rdd/master/docs/logo.png)
+
+![Maven central](https://maven-badges.herokuapp.com/maven-central/eu.unicredit/hbase-rdd_2.12/badge.svg?color=orange)
+
 [![Latest version](https://index.scala-lang.org/unicredit/hbase-rdd/hbase-rdd/latest.svg?color=orange)](https://index.scala-lang.org/unicredit/hbase-rdd/hbase-rdd)
 
 This project allows to connect Apache Spark to HBase. Currently it is compiled with Scala 2.11 and 2.12, using the versions of Spark and HBase available on CDH6.2.
