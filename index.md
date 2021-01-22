@@ -2,6 +2,9 @@ HBase RDD
 =========
 
 ![logo](https://raw.githubusercontent.com/unicredit/hbase-rdd/master/docs/logo.png)
+
+![Maven central](https://maven-badges.herokuapp.com/maven-central/eu.unicredit/hbase-rdd_2.12/badge.svg?color=orange)
+
 [![Latest version](https://index.scala-lang.org/unicredit/hbase-rdd/hbase-rdd/latest.svg?color=orange)](https://index.scala-lang.org/unicredit/hbase-rdd/hbase-rdd)
 
 This project allows to connect Apache Spark to HBase. Currently it is compiled with Scala 2.11 and 2.12, using the versions of Spark and HBase available on CDH6.2.
@@ -10,6 +13,7 @@ Here is a list of available versions for different CDH releases:
 
 |Version|Flavour|Spark|HBase          |Scala    |
 |:-----:|:-----:|:---:|:-------------:|:-------:|
+|0.9.1  |CDH 6.3|2.4.7|2.1.0-cdh6.3.4 |2.11/2.12|
 |0.9.0  |CDH 6.2|2.4.3|2.1.0-cdh6.2.0 |2.11/2.12|
 |0.8.0  |CDH 5.5|1.5.0|1.0.0-cdh5.5.2 |2.10/2.11|
 |0.6.0  |CDH 5.3|1.2.0|0.98.6-cdh5.3.1|2.10     |
@@ -34,14 +38,14 @@ This guide assumes you are using SBT. Usage of similar tools like Maven or Leini
 
 HBase RDD can be added as a dependency in sbt with:
 
-    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.9.0"
+    dependencies += "eu.unicredit" %% "hbase-rdd" % "0.9.1"
 
 Currently, the project depends on the following artifacts:
 
-    "org.apache.spark" %% "spark-core" % "2.4.3" % "provided",
-    "org.apache.hbase" % "hbase-common" % "2.1.0-cdh6.2.0" % "provided",
-    "org.apache.hbase" % "hbase-mapreduce" % "2.1.0-cdh6.2.0" % "provided",
-    "org.apache.hbase" % "hbase-server" % "2.1.0-cdh6.2.0" % "provided",
+    "org.apache.spark" %% "spark-core" % "2.4.7" % "provided",
+    "org.apache.hbase" % "hbase-common" % "2.1.0-cdh6.3.4" % "provided",
+    "org.apache.hbase" % "hbase-mapreduce" % "2.1.0-cdh6.3.4" % "provided",
+    "org.apache.hbase" % "hbase-server" % "2.1.0-cdh6.3.4" % "provided",
 
 
 All dependencies appear with `provided` scope, so you will have to either have these dependencies in your project, or have the corresponding artifacts available locally in your cluster. Most of them are available in the Cloudera repositories, which you can add with the following line:
