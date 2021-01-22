@@ -2,9 +2,9 @@ name := "hbase-rdd"
 
 organization := "eu.unicredit"
 
-version := "0.9.0"
+version := "0.9.1"
 
-crossScalaVersions := Seq("2.11.12", "2.12.8")
+crossScalaVersions := Seq("2.11.12", "2.12.13")
 
 scalacOptions ++= Seq(
   "-deprecation",
@@ -19,9 +19,9 @@ resolvers ++= Seq(
   "Cloudera releases" at "https://repository.cloudera.com/artifactory/libs-release"
 )
 
-val sparkVersion = "2.4.3"
-val hbaseVersion = "2.1.0-cdh6.2.0"
-val hadoopVersion = "3.0.0-cdh6.2.0"
+val sparkVersion = "2.4.7"
+val hbaseVersion = "2.1.0-cdh6.3.4"
+val hadoopVersion = "3.0.0-cdh6.3.4"
 
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",
@@ -65,7 +65,7 @@ publishTo := Some(sonatypeDefaultResolver.value)
 credentials += Credentials(Path.userHome / ".ivy2" / "sonatype.credentials")
 
 pomExtra := {
-  <url>https://github.com/unicredit/hbase-rdd</url>
+  <url>https://github.com/hbase-rdd/hbase-rdd</url>
   <licenses>
     <license>
       <name>Apache 2</name>
@@ -73,9 +73,9 @@ pomExtra := {
     </license>
   </licenses>
   <scm>
-    <connection>scm:git:github.com/unicredit/hbase-rdd</connection>
-    <developerConnection>scm:git:git@github.com:unicredit/hbase-rdd</developerConnection>
-    <url>github.com/unicredit/hbase-rdd</url>
+    <connection>scm:git:github.com/hbase-rdd/hbase-rdd</connection>
+    <developerConnection>scm:git:git@github.com:hbase-rdd/hbase-rdd</developerConnection>
+    <url>github.com/hbase-rdd/hbase-rdd</url>
   </scm>
   <developers>
     <developer>
