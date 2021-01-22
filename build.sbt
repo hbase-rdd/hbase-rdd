@@ -65,7 +65,7 @@ publishTo := Some(sonatypeDefaultResolver.value)
 credentials += Credentials(Path.userHome / ".ivy2" / "sonatype.credentials")
 
 pomExtra := {
-  <url>https://github.com/unicredit/hbase-rdd</url>
+  <url>https://github.com/hbase-rdd/hbase-rdd</url>
   <licenses>
     <license>
       <name>Apache 2</name>
@@ -73,9 +73,9 @@ pomExtra := {
     </license>
   </licenses>
   <scm>
-    <connection>scm:git:github.com/unicredit/hbase-rdd</connection>
-    <developerConnection>scm:git:git@github.com:unicredit/hbase-rdd</developerConnection>
-    <url>github.com/unicredit/hbase-rdd</url>
+    <connection>scm:git:github.com/hbase-rdd/hbase-rdd</connection>
+    <developerConnection>scm:git:git@github.com:hbase-rdd/hbase-rdd</developerConnection>
+    <url>github.com/hbase-rdd/hbase-rdd</url>
   </scm>
   <developers>
     <developer>
