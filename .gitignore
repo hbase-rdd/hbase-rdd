@@ -3,6 +3,7 @@ target/
 project/project/
 project/target/
 .idea/
+.bsp/
 .sbtopts
 *.iml
 .cache
