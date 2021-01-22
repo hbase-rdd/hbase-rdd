@@ -60,7 +60,7 @@ publishMavenStyle := true
 
 pomIncludeRepository := { _ => false }
 
-publishTo := Some(sonatypeDefaultResolver.value)
+publishTo := sonatypePublishToBundle.value
 
 credentials += Credentials(Path.userHome / ".ivy2" / "sonatype.credentials")
 
